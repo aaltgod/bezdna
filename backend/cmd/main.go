@@ -16,16 +16,6 @@ func main() {
 	log.SetFormatter(&log.JSONFormatter{})
 	log.SetLevel(log.DebugLevel)
 
-	snifferConfig, err := config.ProvideSnifferConfig()
-	if err != nil {
-		log.Fatal("couldn't provide sniffer config", err)
-	}
-
-	sn := sniffer.New(snifferConfig.Interface)
-	if err := sn.Run(); err != nil {
-		log.Fatal("couldn't run sniffer", err)
-	}
-
 	dbConfig, err := config.ProvideDBConfig()
 	if err != nil {
 		log.Fatal("couldn't provide db config", err)
@@ -36,12 +26,29 @@ func main() {
 		log.Fatal("couldn't create db adapter", err)
 	}
 
+	snifferConfig, err := config.ProvideSnifferConfig()
+	if err != nil {
+		log.Fatal("couldn't provide sniffer config", err)
+	}
+
+	sn := sniffer.New(snifferConfig.Interface, db.New(dbAdapter))
+	if err := sn.Run(); err != nil {
+		log.Fatal("couldn't run sniffer", err)
+	}
+
 	service := service.New(sn, db.New(dbAdapter))
 
 	router := chi.NewRouter()
+	router.Mount("/api", func() chi.Router {
+		r := chi.NewRouter()
 
-	router.Get("/services", service.GetServices)
-	router.Post("/service", service.AddService)
+		r.Post("/service", service.AddService)
+		r.Get("/services", service.GetServices)
+
+		r.Get("/streams", service.GetStreamsByService)
+
+		return r
+	}())
 
 	http.ListenAndServe(":2137", router)
 }

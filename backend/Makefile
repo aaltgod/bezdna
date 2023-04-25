@@ -1,6 +1,9 @@
 APP_NAME=backend
 
 run: build
+	$(info "RUN docker containers")
+	docker compose up -d
+	@sleep 1
 	$(info "RUN $(APP_NAME)")
 	sudo ./bin/$(APP_NAME)
 
@@ -9,6 +12,8 @@ build: clean
 	go mod download && go build -o bin/$(APP_NAME) cmd/main.go
 
 clean:
+	$(info "STOP docker containers")
+	docker compose stop
 	$(info "CLEAN")	
 	rm -rf bin || true
 

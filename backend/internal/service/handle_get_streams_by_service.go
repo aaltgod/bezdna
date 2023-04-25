@@ -6,11 +6,10 @@ import (
 	"net/http"
 
 	"github.com/aaltgod/bezdna/internal/domain"
-	"github.com/aaltgod/bezdna/internal/sniffer"
 	log "github.com/sirupsen/logrus"
 )
 
-func (s *service) AddService(w http.ResponseWriter, req *http.Request) {
+func (s *service) GetStreamsByService(w http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		log.Error(err)
@@ -20,8 +19,9 @@ func (s *service) AddService(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	service := domain.Service{}
-	if err = json.Unmarshal(body, &service); err != nil {
+	getStreamsByService := domain.GetStreamsByService{}
+
+	if err = json.Unmarshal(body, &getStreamsByService); err != nil {
 		log.Error(err)
 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -29,7 +29,13 @@ func (s *service) AddService(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := s.dbRepository.InsertService(service); err != nil {
+	streams, err := s.dbRepository.GetStreamsByService(domain.Service{
+		Name: getStreamsByService.Name,
+		Port: getStreamsByService.Port,
+	},
+		getStreamsByService.Offset,
+	)
+	if err != nil {
 		log.Error(err)
 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -37,14 +43,15 @@ func (s *service) AddService(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := s.sniffer.AddConfig(sniffer.Config{
-		ServiceName: service.Name,
-		Port:        service.Port,
-	}); err != nil {
-		log.Println(err)
+	result, err := json.Marshal(streams)
+	if err != nil {
+		log.Error(err)
 
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
 	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(result)
 }

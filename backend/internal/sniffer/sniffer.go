@@ -3,6 +3,8 @@ package sniffer
 import (
 	"fmt"
 
+	"github.com/aaltgod/bezdna/internal/domain"
+	"github.com/aaltgod/bezdna/internal/repository/db"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -12,21 +14,23 @@ import (
 
 type Config struct {
 	ServiceName string
-	Port        int32
+	Port        uint16
 }
 
 type Sniffer struct {
+	dbRepository db.Repository
+
+	serviceName   string
+	port          uint16
 	interfaceName string
 	errChan       chan error
-
-	data map[int][]string
 }
 
-func New(interfaceName string) *Sniffer {
+func New(interfaceName string, dbRepository db.Repository) *Sniffer {
 	return &Sniffer{
+		dbRepository:  dbRepository,
 		interfaceName: interfaceName,
 		errChan:       make(chan error),
-		data:          make(map[int][]string),
 	}
 }
 
@@ -43,16 +47,19 @@ func (s *Sniffer) Run() error {
 }
 
 func (s *Sniffer) AddConfig(config Config) error {
+	s.serviceName = config.ServiceName
+	s.port = uint16(config.Port)
+
 	if handle, err := pcap.OpenLive(s.interfaceName, 1600, true, pcap.BlockForever); err != nil {
 		return err
-	} else if err = handle.SetBPFFilter(fmt.Sprintf("tcp and port %d", config.Port)); err != nil {
+	} else if err = handle.SetBPFFilter(fmt.Sprintf("tcp and port %d", s.port)); err != nil {
 		return err
 	} else {
 		log.Printf(
 			"START LISTEN service with name `%s` and port `%d`\n",
-			config.ServiceName, config.Port)
+			s.serviceName, s.port)
 
-		go s.process(context.Background(), config, handle)
+		go s.process(context.Background(), handle)
 	}
 
 	return nil
@@ -62,7 +69,7 @@ func (s *Sniffer) Listen() error {
 	return <-s.errChan
 }
 
-func (s *Sniffer) process(ctx context.Context, cfg Config, handle *pcap.Handle) {
+func (s *Sniffer) process(ctx context.Context, handle *pcap.Handle) {
 	for packet := range gopacket.NewPacketSource(handle, handle.LinkType()).Packets() {
 		for _, layer := range packet.Layers() {
 			switch layer.LayerType() {
@@ -71,14 +78,6 @@ func (s *Sniffer) process(ctx context.Context, cfg Config, handle *pcap.Handle) 
 
 				payload := string(tcpPacket.Payload)
 
-				// log.WithField("service", cfg.ServiceName).Info(
-				// 	tcpPacket.FIN,
-				// 	tcpPacket.RST,
-				// 	tcpPacket.Ack,
-				// 	tcpPacket.Seq,
-				// 	tcpPacket.DstPort.String(),
-				// )
-
 				log.Println(packet.Metadata().Timestamp)
 
 				// we wan't handle KEEP-ALIVE
@@ -86,27 +85,21 @@ func (s *Sniffer) process(ctx context.Context, cfg Config, handle *pcap.Handle) 
 					continue
 				}
 
-				if _, exists := s.data[int(tcpPacket.Ack)]; !exists {
-					s.data[int(tcpPacket.Ack)] = []string{payload}
-
-					log.Println(len(s.data))
-					continue
+				if err := s.dbRepository.InsertStreamByService(
+					domain.Stream{
+						Ack:       uint64(tcpPacket.Ack),
+						Timestamp: packet.Metadata().Timestamp,
+						Payload:   payload,
+					},
+					domain.Service{
+						Name: s.serviceName,
+						Port: s.port,
+					},
+				); err != nil {
+					log.Error(err)
 				}
-
-				s.data[int(tcpPacket.Ack)] = append(s.data[int(tcpPacket.Ack)], payload)
-
-				log.Println(s.data)
-
-				// log.Println(string(payload))
-
 			}
 		}
-		// appLayer := packet.ApplicationLayer()
-		// if appLayer != nil {
-		// 	// fmt.Println(string(appLayer.Payload()))
-
-		// 	log.Infoln(string(appLayer.LayerContents()))
-		// }
 	}
 
 	return

@@ -1,6 +1,9 @@
 package db
 
-import "github.com/aaltgod/bezdna/internal/database"
+import (
+	"github.com/aaltgod/bezdna/internal/database"
+	"github.com/aaltgod/bezdna/internal/domain"
+)
 
 type repository struct {
 	db *database.DBAdapter
@@ -12,11 +15,70 @@ func New(db *database.DBAdapter) Repository {
 	}
 }
 
-func (r *repository) InsertService(serviceName string, port uint16) error {
-	_, err := r.db.Pool.Exec(queryInsertService, serviceName, port)
+func (r *repository) InsertService(service domain.Service) error {
+	_, err := r.db.Pool.Exec(queryInsertService, service.Name, service.Port)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (r *repository) GetServices() ([]domain.Service, error) {
+	rows, err := r.db.Pool.Query(queryGetServices)
+	if err != nil {
+		return nil, err
+	}
+
+	var result Services
+
+	for rows.Next() {
+		service := Service{}
+
+		if err = rows.Scan(&service.Name, &service.Port); err != nil {
+			return nil, err
+		}
+
+		result = append(result, service)
+	}
+
+	return result.ToDomain(), nil
+}
+
+func (r *repository) InsertStreamByService(
+	stream domain.Stream, service domain.Service,
+) error {
+	_, err := r.db.Pool.Exec(
+		queryInsertStream, service.Name, service.Port,
+		stream.Ack, stream.Timestamp, stream.Payload)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *repository) GetStreamsByService(
+	service domain.Service, offset int64,
+) ([]domain.Stream, error) {
+	rows, err := r.db.Pool.Query(
+		queryGetStreamsByService,
+		service.Name, service.Port, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	var result Streams
+
+	for rows.Next() {
+		stream := Stream{}
+
+		if err = rows.Scan(&stream.Ack, &stream.Timestamp, &stream.Payload); err != nil {
+			return nil, err
+		}
+
+		result = append(result, stream)
+	}
+
+	return result.ToDomain(), nil
 }
