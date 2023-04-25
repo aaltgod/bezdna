@@ -61,11 +61,14 @@ func (r *repository) InsertStreamByService(
 }
 
 func (r *repository) GetStreamsByService(
-	service domain.Service, offset int64,
+	getStreamsByService domain.GetStreamsByService,
 ) ([]domain.Stream, error) {
 	rows, err := r.db.Pool.Query(
 		queryGetStreamsByService,
-		service.Name, service.Port, offset)
+		getStreamsByService.Name,
+		getStreamsByService.Port,
+		getStreamsByService.Offset,
+	)
 	if err != nil {
 		return nil, errors.Wrap(err, WrapQuery)
 	}

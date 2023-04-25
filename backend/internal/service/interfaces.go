@@ -1,10 +1,14 @@
 package service
 
-import "net/http"
+import (
+	"github.com/aaltgod/bezdna/internal/domain"
+)
 
 type Service interface {
-	AddService(w http.ResponseWriter, req *http.Request)
-	GetServices(w http.ResponseWriter, req *http.Request)
+	AddService(service domain.Service) error
+	GetServices() ([]domain.Service, error)
 
-	GetStreamsByService(w http.ResponseWriter, req *http.Request)
+	GetStreamsByService(
+		getStreamsByService domain.GetStreamsByService,
+	) ([]domain.Stream, error)
 }

@@ -18,6 +18,6 @@ type Streamer interface {
 		stream domain.Stream, service domain.Service,
 	) error
 	GetStreamsByService(
-		service domain.Service, offset int64,
+		getStreamsByService domain.GetStreamsByService,
 	) ([]domain.Stream, error)
 }

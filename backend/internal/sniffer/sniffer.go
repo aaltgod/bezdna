@@ -8,6 +8,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
@@ -38,7 +39,7 @@ func (s *Sniffer) Run() error {
 	// Check an interface listening
 	_, err := pcap.OpenLive(s.interfaceName, 1600, true, pcap.BlockForever)
 	if err != nil {
-		return err
+		return errors.Wrap(err, WrapOpenLive)
 	}
 
 	log.Printf("[OK] Check listening interface with name `%s`\n", s.interfaceName)
@@ -51,9 +52,9 @@ func (s *Sniffer) AddConfig(config Config) error {
 	s.port = uint16(config.Port)
 
 	if handle, err := pcap.OpenLive(s.interfaceName, 1600, true, pcap.BlockForever); err != nil {
-		return err
+		return errors.Wrap(err, WrapOpenLive)
 	} else if err = handle.SetBPFFilter(fmt.Sprintf("tcp and port %d", s.port)); err != nil {
-		return err
+		return errors.Wrap(err, WrapSetBPFFilter)
 	} else {
 		log.Printf(
 			"START LISTEN service with name `%s` and port `%d`\n",
@@ -94,7 +95,7 @@ func (s *Sniffer) process(ctx context.Context, handle *pcap.Handle) {
 						Port: s.port,
 					},
 				); err != nil {
-					log.Error(err)
+					log.Errorln(errors.Wrap(err, WrapInsertStreamByService))
 				}
 			}
 		}

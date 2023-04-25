@@ -6,6 +6,7 @@ import (
 
 	"github.com/aaltgod/bezdna/internal/config"
 	"github.com/aaltgod/bezdna/internal/database"
+	"github.com/aaltgod/bezdna/internal/handler"
 	"github.com/aaltgod/bezdna/internal/repository/db"
 	"github.com/aaltgod/bezdna/internal/service"
 	"github.com/aaltgod/bezdna/internal/sniffer"
@@ -37,16 +38,16 @@ func main() {
 		log.Fatalln("couldn't run sniffer", err)
 	}
 
-	service := service.New(sn, db.New(dbAdapter))
+	handler := handler.New(service.New(sn, db.New(dbAdapter)))
 
 	router := chi.NewRouter()
 	router.Mount("/api", func() chi.Router {
 		r := chi.NewRouter()
 
-		r.Post("/service", service.AddService)
-		r.Get("/services", service.GetServices)
+		r.Post("/service", handler.AddService)
+		r.Get("/services", handler.GetServices)
 
-		r.Get("/streams-by-service", service.GetStreamsByService)
+		r.Get("/streams-by-service", handler.GetStreamsByService)
 
 		return r
 	}())
