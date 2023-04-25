@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/aaltgod/bezdna/internal/config"
@@ -45,10 +46,20 @@ func main() {
 		r.Post("/service", service.AddService)
 		r.Get("/services", service.GetServices)
 
-		r.Get("/streams", service.GetStreamsByService)
+		r.Get("/streams-by-service", service.GetStreamsByService)
 
 		return r
 	}())
 
-	http.ListenAndServe(":2137", router)
+	serverConfig, err := config.ProvideServerConfig()
+	if err != nil {
+		log.Fatal("couldn't provide server config", err)
+	}
+
+	log.Infof("START SERVER on PORT `%d`", serverConfig.Port)
+
+	http.ListenAndServe(
+		fmt.Sprintf("%s:%d", serverConfig.Host, serverConfig.Port),
+		router,
+	)
 }

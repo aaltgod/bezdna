@@ -21,6 +21,7 @@ func (s *service) AddService(w http.ResponseWriter, req *http.Request) {
 	}
 
 	service := domain.Service{}
+
 	if err = json.Unmarshal(body, &service); err != nil {
 		log.Error(err)
 

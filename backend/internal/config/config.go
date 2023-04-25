@@ -20,6 +20,11 @@ type DBConfig struct {
 	Database string
 }
 
+type ServerConfig struct {
+	Host string
+	Port uint16
+}
+
 func load() error {
 	return godotenv.Load()
 }
@@ -44,14 +49,14 @@ func ProvideDBConfig() (DBConfig, error) {
 		return DBConfig{}, err
 	}
 
-	host := os.Getenv("HOST")
+	host := os.Getenv("POSTGRES_HOST")
 	if host == "" {
-		return DBConfig{}, errors.New("HOST is not set")
+		return DBConfig{}, errors.New("POSTGRES_HOST is not set")
 	}
 
-	port := os.Getenv("PORT")
+	port := os.Getenv("POSTGRES_PORT")
 	if port == "" {
-		return DBConfig{}, errors.New("PORT is not set")
+		return DBConfig{}, errors.New("POSTGRES_PORT is not set")
 	}
 
 	portInt, err := strconv.Atoi(port)
@@ -59,19 +64,19 @@ func ProvideDBConfig() (DBConfig, error) {
 		return DBConfig{}, err
 	}
 
-	username := os.Getenv("USERNAME")
+	username := os.Getenv("POSTGRES_USERNAME")
 	if username == "" {
-		return DBConfig{}, errors.New("USERNAME is not set")
+		return DBConfig{}, errors.New("POSTGRES_USERNAME is not set")
 	}
 
-	password := os.Getenv("PASSWORD")
+	password := os.Getenv("POSTGRES_PASSWORD")
 	if password == "" {
-		return DBConfig{}, errors.New("PASSWORD is not set")
+		return DBConfig{}, errors.New("POSTGRES_PASSWORD is not set")
 	}
 
-	database := os.Getenv("DATABASE")
+	database := os.Getenv("POSTGRES_DATABASE")
 	if password == "" {
-		return DBConfig{}, errors.New("DATABASE is not set")
+		return DBConfig{}, errors.New("POSTGRES_DATABASE is not set")
 	}
 
 	return DBConfig{
@@ -80,5 +85,26 @@ func ProvideDBConfig() (DBConfig, error) {
 		Username: username,
 		Password: password,
 		Database: database,
+	}, nil
+}
+
+func ProvideServerConfig() (ServerConfig, error) {
+	if err := load(); err != nil {
+		return ServerConfig{}, err
+	}
+
+	port := os.Getenv("SERVER_PORT")
+	if port == "" {
+		return ServerConfig{}, errors.New("SERVER_PORT is not set")
+	}
+
+	portInt, err := strconv.Atoi(port)
+	if err != nil {
+		return ServerConfig{}, err
+	}
+
+	return ServerConfig{
+		Host: os.Getenv("SERVER_HOST"),
+		Port: uint16(portInt),
 	}, nil
 }

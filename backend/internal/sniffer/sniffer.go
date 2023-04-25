@@ -78,8 +78,6 @@ func (s *Sniffer) process(ctx context.Context, handle *pcap.Handle) {
 
 				payload := string(tcpPacket.Payload)
 
-				log.Println(packet.Metadata().Timestamp)
-
 				// we wan't handle KEEP-ALIVE
 				if len(payload) <= 1 {
 					continue
