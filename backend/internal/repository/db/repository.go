@@ -3,6 +3,7 @@ package db
 import (
 	"github.com/aaltgod/bezdna/internal/database"
 	"github.com/aaltgod/bezdna/internal/domain"
+	"github.com/pkg/errors"
 )
 
 type repository struct {
@@ -18,7 +19,7 @@ func New(db *database.DBAdapter) Repository {
 func (r *repository) InsertService(service domain.Service) error {
 	_, err := r.db.Pool.Exec(queryInsertService, service.Name, service.Port)
 	if err != nil {
-		return err
+		return errors.Wrap(err, WrapExec)
 	}
 
 	return nil
@@ -27,8 +28,9 @@ func (r *repository) InsertService(service domain.Service) error {
 func (r *repository) GetServices() ([]domain.Service, error) {
 	rows, err := r.db.Pool.Query(queryGetServices)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, WrapQuery)
 	}
+	defer rows.Close()
 
 	var result Services
 
@@ -36,7 +38,7 @@ func (r *repository) GetServices() ([]domain.Service, error) {
 		service := Service{}
 
 		if err = rows.Scan(&service.Name, &service.Port); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, WrapScan)
 		}
 
 		result = append(result, service)
@@ -52,7 +54,7 @@ func (r *repository) InsertStreamByService(
 		queryInsertStream, service.Name, service.Port,
 		stream.Ack, stream.Timestamp, stream.Payload)
 	if err != nil {
-		return err
+		return errors.Wrap(err, WrapExec)
 	}
 
 	return nil
@@ -65,8 +67,9 @@ func (r *repository) GetStreamsByService(
 		queryGetStreamsByService,
 		service.Name, service.Port, offset)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, WrapQuery)
 	}
+	defer rows.Close()
 
 	var result Streams
 
@@ -74,7 +77,7 @@ func (r *repository) GetStreamsByService(
 		stream := Stream{}
 
 		if err = rows.Scan(&stream.Ack, &stream.Timestamp, &stream.Payload); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, WrapScan)
 		}
 
 		result = append(result, stream)

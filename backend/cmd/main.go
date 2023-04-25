@@ -19,22 +19,22 @@ func main() {
 
 	dbConfig, err := config.ProvideDBConfig()
 	if err != nil {
-		log.Fatal("couldn't provide db config", err)
+		log.Fatalln("couldn't provide db config", err)
 	}
 
 	dbAdapter, err := database.New(dbConfig)
 	if err != nil {
-		log.Fatal("couldn't create db adapter", err)
+		log.Fatalln("couldn't create db adapter", err)
 	}
 
 	snifferConfig, err := config.ProvideSnifferConfig()
 	if err != nil {
-		log.Fatal("couldn't provide sniffer config", err)
+		log.Fatalln("couldn't provide sniffer config", err)
 	}
 
 	sn := sniffer.New(snifferConfig.Interface, db.New(dbAdapter))
 	if err := sn.Run(); err != nil {
-		log.Fatal("couldn't run sniffer", err)
+		log.Fatalln("couldn't run sniffer", err)
 	}
 
 	service := service.New(sn, db.New(dbAdapter))
@@ -53,7 +53,7 @@ func main() {
 
 	serverConfig, err := config.ProvideServerConfig()
 	if err != nil {
-		log.Fatal("couldn't provide server config", err)
+		log.Fatalln("couldn't provide server config", err)
 	}
 
 	log.Infof("START SERVER on PORT `%d`", serverConfig.Port)

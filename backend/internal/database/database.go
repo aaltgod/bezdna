@@ -3,6 +3,7 @@ package database
 import (
 	"github.com/aaltgod/bezdna/internal/config"
 	"github.com/jackc/pgx"
+	"github.com/pkg/errors"
 )
 
 type DBAdapter struct {
@@ -21,7 +22,7 @@ func New(cfg config.DBConfig) (*DBAdapter, error) {
 			},
 		})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "pgx.NewConnPool")
 	}
 
 	return &DBAdapter{
