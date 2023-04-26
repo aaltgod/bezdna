@@ -21,20 +21,17 @@ type Config struct {
 type Sniffer struct {
 	dbRepository db.Repository
 
-	serviceName   string
-	port          uint16
 	interfaceName string
-	errChan       chan error
 }
 
 func New(interfaceName string, dbRepository db.Repository) *Sniffer {
 	return &Sniffer{
 		dbRepository:  dbRepository,
 		interfaceName: interfaceName,
-		errChan:       make(chan error),
 	}
 }
 
+// Run runs handling of services which already exist in db
 func (s *Sniffer) Run() error {
 	// Check an interface listening
 	_, err := pcap.OpenLive(s.interfaceName, 1600, true, pcap.BlockForever)
@@ -42,35 +39,40 @@ func (s *Sniffer) Run() error {
 		return errors.Wrap(err, WrapOpenLive)
 	}
 
-	log.Printf("[OK] Check listening interface with name `%s`\n", s.interfaceName)
+	services, err := s.dbRepository.GetServices()
+	if err != nil {
+		return errors.Wrap(err, WrapGetServices)
+	}
 
-	return nil
-}
-
-func (s *Sniffer) AddConfig(config Config) error {
-	s.serviceName = config.ServiceName
-	s.port = uint16(config.Port)
-
-	if handle, err := pcap.OpenLive(s.interfaceName, 1600, true, pcap.BlockForever); err != nil {
-		return errors.Wrap(err, WrapOpenLive)
-	} else if err = handle.SetBPFFilter(fmt.Sprintf("tcp and port %d", s.port)); err != nil {
-		return errors.Wrap(err, WrapSetBPFFilter)
-	} else {
-		log.Printf(
-			"START LISTEN service with name `%s` and port `%d`\n",
-			s.serviceName, s.port)
-
-		go s.process(context.Background(), handle)
+	for _, service := range services {
+		if err = s.AddConfig(Config{
+			ServiceName: service.Name,
+			Port:        service.Port,
+		}); err != nil {
+			return errors.Wrap(err, WrapAddConfig)
+		}
 	}
 
 	return nil
 }
 
-func (s *Sniffer) Listen() error {
-	return <-s.errChan
+func (s *Sniffer) AddConfig(config Config) error {
+	if handle, err := pcap.OpenLive(s.interfaceName, 1600, true, pcap.BlockForever); err != nil {
+		return errors.Wrap(err, WrapOpenLive)
+	} else if err = handle.SetBPFFilter(fmt.Sprintf("tcp and port %d", config.Port)); err != nil {
+		return errors.Wrap(err, WrapSetBPFFilter)
+	} else {
+		log.Infof(
+			"START LISTEN service with name `%s` and port `%d`\n",
+			config.ServiceName, config.Port)
+
+		go s.process(context.Background(), config, handle)
+	}
+
+	return nil
 }
 
-func (s *Sniffer) process(ctx context.Context, handle *pcap.Handle) {
+func (s *Sniffer) process(ctx context.Context, config Config, handle *pcap.Handle) {
 	for packet := range gopacket.NewPacketSource(handle, handle.LinkType()).Packets() {
 		for _, layer := range packet.Layers() {
 			switch layer.LayerType() {
@@ -78,6 +80,8 @@ func (s *Sniffer) process(ctx context.Context, handle *pcap.Handle) {
 				tcpPacket, _ := packet.Layer(layers.LayerTypeTCP).(*layers.TCP)
 
 				payload := string(tcpPacket.Payload)
+
+				log.Infoln(config, payload)
 
 				// we wan't handle KEEP-ALIVE
 				if len(payload) <= 1 {
@@ -91,8 +95,8 @@ func (s *Sniffer) process(ctx context.Context, handle *pcap.Handle) {
 						Payload:   payload,
 					},
 					domain.Service{
-						Name: s.serviceName,
-						Port: s.port,
+						Name: config.ServiceName,
+						Port: config.Port,
 					},
 				); err != nil {
 					log.Errorln(errors.Wrap(err, WrapInsertStreamByService))
@@ -100,6 +104,4 @@ func (s *Sniffer) process(ctx context.Context, handle *pcap.Handle) {
 			}
 		}
 	}
-
-	return
 }

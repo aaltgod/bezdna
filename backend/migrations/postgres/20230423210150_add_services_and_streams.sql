@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS streams (
     payload TEXT,
     FOREIGN KEY(service_name, service_port)
         REFERENCES services(name, port)
+            ON DELETE CASCADE
 );
 -- +goose StatementEnd
 
