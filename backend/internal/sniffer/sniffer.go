@@ -78,7 +78,6 @@ func (s *Sniffer) process(ctx context.Context, config Config, handle *pcap.Handl
 			switch layer.LayerType() {
 			case layers.LayerTypeTCP:
 				tcpPacket, _ := packet.Layer(layers.LayerTypeTCP).(*layers.TCP)
-
 				payload := string(tcpPacket.Payload)
 
 				log.Infoln(config, payload)

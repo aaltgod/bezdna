@@ -2,6 +2,11 @@ package handler
 
 import "github.com/pkg/errors"
 
+var (
+	ErrMinOffset = errors.New("offset can't be < 1")
+	ErrMaxOffset = errors.New("offset can't be > 20")
+)
+
 const (
 	WrapReadAll   = "io.ReadAll"
 	WrapUnmarshal = "json.Unmarshal"

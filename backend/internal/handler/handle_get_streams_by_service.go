@@ -29,6 +29,22 @@ func (h *handler) GetStreamsByService(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	if getStreamsByService.Offset < 1 {
+		log.Errorln(ErrMinOffset, getStreamsByService)
+
+		http.Error(w, ErrMinOffset.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	if getStreamsByService.Offset > 20 {
+		log.Errorln(ErrMaxOffset, getStreamsByService)
+
+		http.Error(w, ErrMaxOffset.Error(), http.StatusBadRequest)
+
+		return
+	}
+
 	streams, err := h.service.GetStreamsByService(getStreamsByService)
 	if err != nil {
 		log.Errorln(WrapfGetStreamsByService(err, WrapGetStreamsByService))

@@ -10,7 +10,7 @@ import (
 func (h *handler) GetServices(w http.ResponseWriter, req *http.Request) {
 	services, err := h.service.GetServices()
 	if err != nil {
-		log.Errorln(WrapfGetStreamsByService(err, WrapAddService))
+		log.Errorln(WrapfGetServices(err, WrapAddService))
 
 		http.Error(
 			w,

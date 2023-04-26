@@ -14,7 +14,6 @@ INSERT INTO streams VALUES($1, $2, $3, $4, $5)
 SELECT ack, timestamp, payload FROM streams
 	WHERE streams.service_name=$1 AND streams.service_port=$2
 		ORDER BY timestamp DESC
-			OFFSET $3
-			
+			OFFSET $3	
 `
 )
