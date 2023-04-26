@@ -18,6 +18,11 @@ func main() {
 	log.SetFormatter(&log.JSONFormatter{})
 	log.SetLevel(log.DebugLevel)
 
+	serverConfig, err := config.ProvideServerConfig()
+	if err != nil {
+		log.Fatalln("couldn't provide server config", err)
+	}
+
 	dbConfig, err := config.ProvideDBConfig()
 	if err != nil {
 		log.Fatalln("couldn't provide db config", err)
@@ -51,11 +56,6 @@ func main() {
 
 		return r
 	}())
-
-	serverConfig, err := config.ProvideServerConfig()
-	if err != nil {
-		log.Fatalln("couldn't provide server config", err)
-	}
 
 	log.Infof("START SERVER on PORT `%d`", serverConfig.Port)
 
