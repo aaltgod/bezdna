@@ -68,6 +68,7 @@ func (r *repository) GetStreamsByService(
 		getStreamsByService.Name,
 		getStreamsByService.Port,
 		getStreamsByService.Offset,
+		getStreamsByService.Limit,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, WrapQuery)

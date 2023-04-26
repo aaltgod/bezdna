@@ -11,4 +11,5 @@ type Stream struct {
 type GetStreamsByService struct {
 	Service
 	Offset int64 `json:"offset"`
+	Limit  int16 `json:"limit"`
 }

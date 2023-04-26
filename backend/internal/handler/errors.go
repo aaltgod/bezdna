@@ -5,6 +5,7 @@ import "github.com/pkg/errors"
 var (
 	ErrMinOffset = errors.New("offset can't be < 1")
 	ErrMaxOffset = errors.New("offset can't be > 20")
+	ErrMaxLimit  = errors.New("limit can't be > 20")
 )
 
 const (

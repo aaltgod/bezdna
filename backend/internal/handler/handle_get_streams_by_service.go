@@ -45,6 +45,18 @@ func (h *handler) GetStreamsByService(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	if getStreamsByService.Limit > 20 {
+		log.Errorln(ErrMaxLimit, getStreamsByService)
+
+		http.Error(w, ErrMaxLimit.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	if getStreamsByService.Limit == 0 {
+		getStreamsByService.Limit = 20
+	}
+
 	streams, err := h.service.GetStreamsByService(getStreamsByService)
 	if err != nil {
 		log.Errorln(WrapfGetStreamsByService(err, WrapGetStreamsByService))
