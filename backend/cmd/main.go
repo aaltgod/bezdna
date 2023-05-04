@@ -11,6 +11,7 @@ import (
 	"github.com/aaltgod/bezdna/internal/service"
 	"github.com/aaltgod/bezdna/internal/sniffer"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -46,6 +47,9 @@ func main() {
 	handler := handler.New(service.New(sn, db.New(dbAdapter)))
 
 	router := chi.NewRouter()
+
+	router.Use(cors.AllowAll().Handler)
+
 	router.Mount("/api", func() chi.Router {
 		r := chi.NewRouter()
 
@@ -53,6 +57,8 @@ func main() {
 		r.Get("/services", handler.GetServices)
 
 		r.Get("/streams-by-service", handler.GetStreamsByService)
+
+		r.HandleFunc("/ws", handler.WSGetStreams)
 
 		return r
 	}())

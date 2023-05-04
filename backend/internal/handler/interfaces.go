@@ -7,4 +7,5 @@ type Handler interface {
 	GetServices(w http.ResponseWriter, req *http.Request)
 
 	GetStreamsByService(w http.ResponseWriter, req *http.Request)
+	WSGetStreams(w http.ResponseWriter, req *http.Request)
 }
