@@ -8,27 +8,30 @@ use pnet::{
         Packet,
     },
 };
+use std::collections::HashMap;
 use std::io::Error;
-use std::sync::Arc;
+use std::net::Ipv4Addr;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct ConnectionId {
-    source_ip: std::net::IpAddr,
+    source_ip: Ipv4Addr,
     source_port: u16,
-    destination_ip: std::net::IpAddr,
+    destination_ip: Ipv4Addr,
     destination_port: u16,
 }
 
 pub struct Sniffer {
     interface_name: String,
-    connection_ids: Arc<ConnectionId>,
+    connection_ids: Arc<Mutex<HashMap<ConnectionId, bool>>>,
 }
 
 impl Sniffer {
     pub fn new(interface_name: &str) -> Self {
+        let connection_id_map: HashMap<ConnectionId, bool> = HashMap::new();
         Sniffer {
             interface_name: interface_name.to_string(),
-            connection_ids: Arc::new(Mutex::new(HashMap::new())),
+            connection_ids: Arc::new(Mutex::new(connection_id_map)),
         }
     }
 
@@ -61,9 +64,9 @@ impl Sniffer {
                 match ipv4_packet.get_next_level_protocol() {
                     IpNextHeaderProtocols::Tcp => {
                         let tcp_packet = TcpPacket::new(ipv4_packet.payload()).unwrap();
-                        let source_ip = packet.get_source();
+                        let source_ip = ipv4_packet.get_source();
                         let source_port = tcp_packet.get_source();
-                        let destination_ip = packet.get_destination();
+                        let destination_ip = ipv4_packet.get_destination();
                         let destination_port = tcp_packet.get_destination();
 
                         let conn_id = ConnectionId {
@@ -73,12 +76,13 @@ impl Sniffer {
                             destination_port,
                         };
 
-                        let mut connections = connections.lock().unwrap();
+                        let mut connections = self.connection_ids.lock().unwrap();
 
                         // Проверяем, существует ли уже соединение с таким идентификатором
                         if !connections.contains_key(&conn_id) {
                             // Если нет, добавляем новое соединение в HashMap
-                            connections.insert(conn_id, (tx.clone(), rx.clone()));
+                            warn!("INSERTED: {:?}", conn_id);
+                            connections.insert(conn_id, true);
                         };
 
                         let tcp_flag = match tcp_packet.get_flags() {
@@ -122,6 +126,8 @@ impl Sniffer {
                             tcp_packet.get_sequence(),
                             tcp_packet.get_flags(),
                         );
+
+                        warn!("{:?} {}", connections, connections.len());
                     }
                     _ => {}
                 }
