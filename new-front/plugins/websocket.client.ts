@@ -1,0 +1,10 @@
+import {defineNuxtPlugin} from "nuxt/app";
+
+export default defineNuxtPlugin(() => {
+    let socket = new WebSocket(`ws://localhost:2137/api/ws`)
+    return {
+        provide: {
+            socket,
+        },
+    }
+})

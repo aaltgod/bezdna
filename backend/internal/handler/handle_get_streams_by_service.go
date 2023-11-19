@@ -2,12 +2,10 @@ package handler
 
 import (
 	"encoding/json"
-	"io"
-	"net/http"
-	"time"
-
 	"github.com/aaltgod/bezdna/internal/domain"
 	log "github.com/sirupsen/logrus"
+	"io"
+	"net/http"
 )
 
 func (h *handler) GetStreamsByService(w http.ResponseWriter, req *http.Request) {
@@ -20,11 +18,54 @@ func (h *handler) GetStreamsByService(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	streams := []domain.Stream{
+	streams := []domain.Fake{
 		{
-			Ack:       12121212,
-			Timestamp: time.Now(),
-			Payload:   "TEXT",
+			UserId:    1,
+			Id:        12121212,
+			Completed: true,
+			Title:     "TEXT",
+		},
+		{
+			UserId:    2,
+			Id:        12121212,
+			Completed: true,
+			Title:     "qwer",
+		},
+		{
+			UserId:    1,
+			Id:        12121212,
+			Completed: true,
+			Title:     "yrt",
+		},
+		{
+			UserId:    2,
+			Id:        12121212,
+			Completed: true,
+			Title:     "ert",
+		},
+		{
+			UserId:    1,
+			Id:        12121212,
+			Completed: true,
+			Title:     "wer",
+		},
+		{
+			UserId:    2,
+			Id:        12121212,
+			Completed: true,
+			Title:     "r",
+		},
+		{
+			UserId:    1,
+			Id:        12121212,
+			Completed: true,
+			Title:     "wer",
+		},
+		{
+			UserId:    2,
+			Id:        12121212,
+			Completed: true,
+			Title:     "wer",
 		},
 	}
 
@@ -41,6 +82,7 @@ func (h *handler) GetStreamsByService(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(result)
 

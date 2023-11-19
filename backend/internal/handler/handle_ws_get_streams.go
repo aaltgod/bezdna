@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/aaltgod/bezdna/internal/domain"
 	"net/http"
 	"time"
 
@@ -28,16 +29,28 @@ func (h *handler) WSGetStreams(w http.ResponseWriter, req *http.Request) {
 		// }
 
 		for {
-			err = wsutil.WriteServerMessage(conn, ws.OpCode(ws.StateServerSide), []byte("STREAM"))
-			if err != nil {
-				http.Error(w, "err", http.StatusInternalServerError)
+			streams, err := h.service.GetStreamsByService(domain.GetStreamsByService{
+				Service: domain.Service{
+					Name: "bezdna",
+					Port: 3000,
+				},
+				Offset: 0,
+				Limit:  1000,
+			})
 
-				return
+			for _, stream := range streams {
+				err = wsutil.WriteServerMessage(conn, ws.OpCode(ws.StateServerSide), []byte(stream.Payload))
+				if err != nil {
+					http.Error(w, "err", http.StatusInternalServerError)
+
+					return
+				}
+
+				log.Info("SEND")
+
+				time.Sleep(3 * time.Second)
 			}
 
-			log.Info("SEND")
-
-			time.Sleep(3 * time.Second)
 		}
 	}()
 }

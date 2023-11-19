@@ -8,6 +8,12 @@ type Stream struct {
 	Payload   string    `json:"payload"`
 }
 
+type Fake struct {
+	UserId    int64  `json:"userId"`
+	Id        int64  `json:"id"`
+	Title     string `json:"title"`
+	Completed bool   `json:"completed"`
+}
 type GetStreamsByService struct {
 	Service
 	Offset int64 `json:"offset"`

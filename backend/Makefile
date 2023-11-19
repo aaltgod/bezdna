@@ -1,8 +1,6 @@
 APP_NAME=backend
 
-run: build
-	$(info "RUN docker containers")
-	docker compose up -d
+run: build compose-up
 	@sleep 1
 	$(info "RUN $(APP_NAME)")
 	sudo ./bin/$(APP_NAME)
@@ -11,10 +9,8 @@ build: clean
 	$(info "BUILD")
 	go mod download && go build -o bin/$(APP_NAME) cmd/main.go
 
-clean:
-	$(info "STOP docker containers")
-	docker compose stop
-	$(info "CLEAN")	
+clean: compose-stop
+	$(info "CLEAN")
 	rm -rf bin || true
 
 install-goose:
@@ -35,3 +31,10 @@ migration-down:
 
 migration-reset:
 	goose -dir ${LOCAL_MIGRATION_DIR} postgres ${LOCAL_MIGRATION_DSN} reset
+
+compose-up:
+	docker-compose -p bezdna -f ./docker-compose.yaml up -d
+compose-stop:
+	docker-compose -p bezdna -f ./docker-compose.yaml stop
+compose-down:
+	docker-compose -p bezdna -f ./docker-compose.yaml down
