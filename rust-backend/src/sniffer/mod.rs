@@ -1,17 +1,21 @@
-use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::tcp::{TcpFlags, TcpPacket};
 use pnet::{
-    datalink::{Channel::Ethernet, EtherType},
+    datalink::Channel::Ethernet,
     packet::{
         ethernet::{EtherTypes, EthernetPacket},
-        ipv4::{Ipv4, Ipv4Packet},
+        ipv4::Ipv4Packet,
         Packet,
     },
 };
+use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
 use std::io::Error;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
+use std::thread;
+use tokio::select;
+use tokio::sync::mpsc::Receiver;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct ConnectionId {
@@ -22,20 +26,26 @@ struct ConnectionId {
 }
 
 pub struct Sniffer {
+    db: Pool<Postgres>,
     interface_name: String,
     connection_ids: Arc<Mutex<HashMap<ConnectionId, bool>>>,
+    ports_to_sniff: Arc<Mutex<HashMap<u16, bool>>>,
 }
 
 impl Sniffer {
-    pub fn new(interface_name: &str) -> Self {
+    pub fn new(db: Pool<Postgres>, interface_name: &str) -> Self {
         let connection_id_map: HashMap<ConnectionId, bool> = HashMap::new();
+        let ports_to_sniff_map: HashMap<u16, bool> = HashMap::new();
+
         Sniffer {
+            db,
             interface_name: interface_name.to_string(),
             connection_ids: Arc::new(Mutex::new(connection_id_map)),
+            ports_to_sniff: Arc::new(Mutex::new(ports_to_sniff_map)),
         }
     }
 
-    pub fn run(&self) -> Result<(), Error> {
+    pub async fn run(self, mut ports_to_wath_rx: Receiver<i32>) -> Result<(), Error> {
         let interfaces = pnet::datalink::interfaces()
             .into_iter()
             .filter(|interface| interface.name.eq(self.interface_name.as_str()))
@@ -48,12 +58,28 @@ impl Sniffer {
             Err(e) => panic!("{e}"),
         };
 
-        loop {
-            match rx.next() {
-                Ok(packet) => self.handle_packet(EthernetPacket::new(packet).unwrap()),
-                Err(e) => panic!("{e}"),
-            }
-        }
+        futures_util::future::join_all(vec![
+            tokio::spawn(async move {
+                loop {
+                    select! {
+                        Some(msg) = ports_to_wath_rx.recv() => {
+                            tracing::info!("{}",msg);
+                        },
+                    }
+                }
+            }),
+            tokio::spawn(async move {
+                loop {
+                    match rx.next() {
+                        Ok(packet) => self.handle_packet(EthernetPacket::new(packet).expect("OK")),
+                        Err(e) => error!("{}", e),
+                    }
+                }
+            }),
+        ])
+        .await;
+
+        Ok(())
     }
 
     fn handle_packet(&self, packet: EthernetPacket) {
@@ -68,6 +94,16 @@ impl Sniffer {
                         let source_port = tcp_packet.get_source();
                         let destination_ip = ipv4_packet.get_destination();
                         let destination_port = tcp_packet.get_destination();
+
+                        if self
+                            .ports_to_sniff
+                            .lock()
+                            .unwrap()
+                            .get(&destination_port)
+                            .is_none()
+                        {
+                            return;
+                        }
 
                         let conn_id = ConnectionId {
                             source_ip,
@@ -136,3 +172,11 @@ impl Sniffer {
         }
     }
 }
+
+pub enum Event {
+    AddService,
+    DeleteService(i32),
+}
+
+unsafe impl Send for Event {}
+unsafe impl Sync for Event {}

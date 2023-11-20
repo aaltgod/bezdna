@@ -1,11 +1,6 @@
-use axum::{
-    http::{Error, StatusCode},
-    response::IntoResponse,
-    Extension, Json,
-};
-use serde::{Deserialize, Serialize};
-
 use crate::AppContext;
+use axum::{http::StatusCode, response::IntoResponse, Extension, Json};
+use serde::{Deserialize, Serialize};
 
 pub async fn create_service(
     ctx: Extension<AppContext>,
@@ -13,28 +8,58 @@ pub async fn create_service(
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::info!("{:?}", input);
 
-    let service = Service {
-        name: input.name,
-        address: input.address,
-    };
-
-    Ok(StatusCode::OK)
-}
-
-pub async fn get_services(ctx: Extension<AppContext>) -> Result<impl IntoResponse, StatusCode> {
-    let mut tx = ctx.db.begin().await.unwrap();
-
-    let rows = match sqlx::query("SELECT * FROM service LIMIT 1")
-        .fetch_all(tx.as_mut())
-        .await
+    match sqlx::query_as!(
+        Service,
+        "
+    SELECT id, name, port FROM services
+    WHERE name = $1 AND port = $2
+    ",
+        input.name,
+        input.port,
+    )
+    .fetch_optional(&ctx.db)
+    .await
     {
-        Ok(rows) => rows,
-        Err(_) => {
-            return Err(StatusCode::NOT_FOUND);
+        Ok(res) => match res {
+            Some(_) => return Err(StatusCode::CONFLICT),
+            None => (),
+        },
+        Err(err) => {
+            tracing::error!("{}", err);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
 
-    let services: Vec<Service> = vec![];
+    let service = sqlx::query_as!(
+        Service,
+        "
+    INSERT INTO services(name, port)
+        VALUES ($1, $2)
+    RETURNING id, name, port
+    ",
+        input.name,
+        input.port
+    )
+    .fetch_one(&ctx.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("{}", e);
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    })?;
+
+    ctx.tx.send(service.port).await.unwrap();
+
+    Ok(Json(service))
+}
+
+pub async fn get_services(ctx: Extension<AppContext>) -> Result<impl IntoResponse, StatusCode> {
+    let services = sqlx::query_as!(Service, "SELECT id, name, port FROM services")
+        .fetch_all(&ctx.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("{}", e);
+            return StatusCode::INTERNAL_SERVER_ERROR;
+        })?;
 
     Ok(Json(services))
 }
@@ -48,11 +73,12 @@ struct User {
 #[derive(Deserialize, Debug)]
 pub struct CreateService {
     name: String,
-    address: String,
+    port: i32,
 }
 
 #[derive(Clone, Serialize, Debug)]
 struct Service {
+    id: i64,
     name: String,
-    address: String,
+    port: i32,
 }
