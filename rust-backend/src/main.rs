@@ -19,12 +19,15 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use tokio::sync::{mpsc, mpsc::Sender};
 
 #[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
 extern crate log;
 
 #[derive(Clone)]
 pub struct AppContext {
     pub db: PgPool,
-    pub tx: Sender<i32>,
+    pub tx: Sender<u16>,
 }
 
 #[tokio::main]

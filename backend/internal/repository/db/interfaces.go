@@ -11,13 +11,12 @@ type Repository interface {
 
 type Servicer interface {
 	InsertService(service domain.Service) error
+	GetServiceByPort(port int32) (*domain.Service, error)
 	GetServices() ([]domain.Service, error)
 }
 type Streamer interface {
-	InsertStreamByService(
-		stream domain.Stream, service domain.Service,
-	) error
+	InsertStreams(streams []domain.Stream) error
 	GetStreamsByService(
-		getStreamsByService domain.GetStreamsByService,
+		service domain.Service, offset, limit int64,
 	) ([]domain.Stream, error)
 }

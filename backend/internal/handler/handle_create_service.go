@@ -2,17 +2,19 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
 	"github.com/aaltgod/bezdna/internal/domain"
+	serv "github.com/aaltgod/bezdna/internal/service"
 	log "github.com/sirupsen/logrus"
 )
 
-func (h *handler) AddService(w http.ResponseWriter, req *http.Request) {
+func (h *handler) CreateService(w http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		log.Errorln(WrapfAddService(err, WrapReadAll))
+		log.Errorln(WrapfCreateService(err, WrapReadAll))
 
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 
@@ -22,15 +24,25 @@ func (h *handler) AddService(w http.ResponseWriter, req *http.Request) {
 	service := domain.Service{}
 
 	if err = json.Unmarshal(body, &service); err != nil {
-		log.Errorln(WrapfAddService(err, WrapUnmarshal))
+		log.Errorln(WrapfCreateService(err, WrapUnmarshal))
 
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 
 		return
 	}
 
-	if err := h.service.AddService(service); err != nil {
-		log.Errorln(WrapfAddService(err, WrapAddService))
+	if err := h.service.CreateService(service); err != nil {
+		log.Errorln(WrapfCreateService(err, WrapCreateService))
+
+		if errors.Is(err, serv.ErrAlreadyExist) {
+			http.Error(
+				w,
+				http.StatusText(http.StatusBadRequest),
+				http.StatusBadRequest,
+			)
+
+			return
+		}
 
 		http.Error(
 			w,

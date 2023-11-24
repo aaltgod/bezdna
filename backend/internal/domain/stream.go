@@ -3,9 +3,18 @@ package domain
 import "time"
 
 type Stream struct {
-	Ack       uint64    `json:"ack"`
-	Timestamp time.Time `json:"timestamp"`
-	Payload   string    `json:"payload"`
+	ID          int64     `json:"id"`
+	ServiceName string    `json:"service_name"`
+	ServicePort int32     `json:"service_port"`
+	Text        *string   `json:"text"`
+	StartedAt   time.Time `json:"started_at"`
+	EndedAt     time.Time `json:"ended_at"`
+}
+
+type StreamWithService struct {
+	ServiceName string
+	ServicePort int32
+	Payload     string
 }
 
 type Fake struct {
@@ -13,9 +22,4 @@ type Fake struct {
 	Id        int64  `json:"id"`
 	Title     string `json:"title"`
 	Completed bool   `json:"completed"`
-}
-type GetStreamsByService struct {
-	Service
-	Offset int64 `json:"offset"`
-	Limit  int16 `json:"limit"`
 }

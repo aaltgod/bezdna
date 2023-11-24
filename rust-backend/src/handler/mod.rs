@@ -47,7 +47,7 @@ pub async fn create_service(
         return StatusCode::INTERNAL_SERVER_ERROR;
     })?;
 
-    ctx.tx.send(service.port).await.unwrap();
+    ctx.tx.send(service.port as u16).await.unwrap();
 
     Ok(Json(service))
 }

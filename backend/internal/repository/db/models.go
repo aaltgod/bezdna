@@ -8,7 +8,7 @@ import (
 
 type Service struct {
 	Name string `db:"name"`
-	Port uint16 `db:"port"`
+	Port int32  `db:"port"`
 }
 
 func (s Service) ToDomain() domain.Service {
@@ -30,21 +30,27 @@ func (s Services) ToDomain() []domain.Service {
 	return result
 }
 
-type Stream struct {
-	Ack       uint64    `db:"ack"`
-	Timestamp time.Time `db:"timestamp"`
-	Payload   string    `db:"payload"`
+type stream struct {
+	ID          int64     `db:"id"`
+	ServiceName string    `db:"service_name"`
+	ServicePort int32     `db:"service_port"`
+	Text        *string   `db:"text"`
+	StartedAt   time.Time `db:"started_at"`
+	EndedAt     time.Time `db:"ended_at"`
 }
 
-func (s Stream) ToDomain() domain.Stream {
+func (s stream) ToDomain() domain.Stream {
 	return domain.Stream{
-		Ack:       s.Ack,
-		Timestamp: s.Timestamp,
-		Payload:   s.Payload,
+		ID:          s.ID,
+		ServiceName: s.ServiceName,
+		ServicePort: s.ServicePort,
+		Text:        s.Text,
+		StartedAt:   s.StartedAt,
+		EndedAt:     s.EndedAt,
 	}
 }
 
-type Streams []Stream
+type Streams []stream
 
 func (s Streams) ToDomain() []domain.Stream {
 	result := make([]domain.Stream, 0, len(s))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -16,6 +17,8 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
+
 	log.SetFormatter(&log.JSONFormatter{})
 	log.SetLevel(log.DebugLevel)
 
@@ -40,7 +43,7 @@ func main() {
 	}
 
 	sn := sniffer.New(snifferConfig.Interface, db.New(dbAdapter))
-	if err := sn.Run(); err != nil {
+	if err := sn.Run(ctx); err != nil {
 		log.Fatalln("couldn't run sniffer", err)
 	}
 
@@ -53,10 +56,10 @@ func main() {
 	router.Mount("/api", func() chi.Router {
 		r := chi.NewRouter()
 
-		r.Post("/service", handler.AddService)
-		r.Get("/services", handler.GetServices)
+		r.Post("/create-service", handler.CreateService)
+		r.Get("/get-services", handler.GetServices)
 
-		r.Get("/streams-by-service", handler.GetStreamsByService)
+		r.Get("/get-streams-by-service", handler.GetStreamsByService)
 
 		r.HandleFunc("/ws", handler.WSGetStreams)
 

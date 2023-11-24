@@ -10,7 +10,7 @@ import (
 func (h *handler) GetServices(w http.ResponseWriter, req *http.Request) {
 	services, err := h.service.GetServices()
 	if err != nil {
-		log.Errorln(WrapfGetServices(err, WrapAddService))
+		log.Errorln(WrapfGetServices(err, WrapCreateService))
 
 		http.Error(
 			w,
@@ -34,6 +34,7 @@ func (h *handler) GetServices(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(response)
 }

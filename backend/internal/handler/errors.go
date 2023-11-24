@@ -13,13 +13,13 @@ const (
 	WrapUnmarshal = "json.Unmarshal"
 	WrapMarshal   = "json.Marshal"
 
-	WrapAddService          = "service.AddService"
+	WrapCreateService       = "service.CreateService"
 	WrapGetServices         = "service.GetServices"
 	WrapGetStreamsByService = "service.GetStreamsByService"
 )
 
-func WrapfAddService(err error, message string) error {
-	return errors.Wrap(errors.Wrap(err, message), "handler.AddService")
+func WrapfCreateService(err error, message string) error {
+	return errors.Wrap(errors.Wrap(err, message), "handler.CreateService")
 }
 
 func WrapfGetServices(err error, message string) error {

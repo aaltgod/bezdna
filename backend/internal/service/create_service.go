@@ -6,7 +6,16 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (s *service) AddService(service domain.Service) error {
+func (s *service) CreateService(service domain.Service) error {
+	serviceFromDB, err := s.dbRepository.GetServiceByPort(service.Port)
+	if err != nil {
+		return errors.Wrap(err, "dbRepository.GetServices")
+	}
+
+	if serviceFromDB != nil {
+		return ErrAlreadyExist
+	}
+
 	if err := s.dbRepository.InsertService(service); err != nil {
 		return errors.Wrap(err, WrapInsertService)
 	}

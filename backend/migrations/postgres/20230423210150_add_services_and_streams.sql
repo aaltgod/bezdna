@@ -4,19 +4,19 @@
 
 CREATE TABLE
     IF NOT EXISTS services (
-        name VARCHAR (30) NOT NULL,
-        port INT NOT NULL,
-        PRIMARY KEY(name, port)
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        port INT NOT NULL
     );
 
 CREATE TABLE
     IF NOT EXISTS streams (
-        service_name VARCHAR (30) NOT NULL,
+        id BIGSERIAL PRIMARY KEY,
+        service_name TEXT NOT NULL,
         service_port INT NOT NULL,
-        ack BIGSERIAL NOT NULL,
-        timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-        payload TEXT,
-        FOREIGN KEY(service_name, service_port) REFERENCES services(name, port) ON DELETE CASCADE
+        text TEXT,
+        started_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+        ended_at TIMESTAMP WITHOUT TIME ZONE NOT NULL
     );
 
 -- +goose StatementEnd

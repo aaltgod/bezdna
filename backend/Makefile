@@ -1,4 +1,5 @@
-APP_NAME=backend
+include .env
+export
 
 run: build compose-up
 	@sleep 1
@@ -18,7 +19,7 @@ install-goose:
 	go install github.com/pressly/goose/v3/cmd/goose@latest
 
 LOCAL_MIGRATION_DIR=./migrations/postgres
-LOCAL_MIGRATION_DSN="host=localhost port=5432 dbname=bezdna user=user password=1234 sslmode=disable"
+LOCAL_MIGRATION_DSN="host=${POSTGRES_HOST} port=${POSTGRES_PORT} dbname=${POSTGRES_DATABASE} user=${POSTGRES_USERNAME} password=${POSTGRES_PASSWORD} sslmode=disable"
 
 create-new-migration:
 	goose -dir ${LOCAL_MIGRATION_DIR} postgres db create ${name} sql
@@ -33,8 +34,8 @@ migration-reset:
 	goose -dir ${LOCAL_MIGRATION_DIR} postgres ${LOCAL_MIGRATION_DSN} reset
 
 compose-up:
-	docker-compose -p bezdna -f ./docker-compose.yaml up -d
+	docker compose -p bezdna -f ./docker-compose.yaml up -d
 compose-stop:
-	docker-compose -p bezdna -f ./docker-compose.yaml stop
+	docker compose -p bezdna -f ./docker-compose.yaml stop
 compose-down:
-	docker-compose -p bezdna -f ./docker-compose.yaml down
+	docker compose -p bezdna -f ./docker-compose.yaml down

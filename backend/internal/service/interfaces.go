@@ -5,10 +5,10 @@ import (
 )
 
 type Service interface {
-	AddService(service domain.Service) error
+	CreateService(service domain.Service) error
 	GetServices() ([]domain.Service, error)
 
 	GetStreamsByService(
-		getStreamsByService domain.GetStreamsByService,
+		service domain.Service, offset, limit int64,
 	) ([]domain.Stream, error)
 }
