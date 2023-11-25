@@ -66,7 +66,7 @@ func main() {
 		return r
 	}())
 
-	log.Infof("START SERVER on PORT `%d`", serverConfig.Port)
+	log.Infof("START SERVER on HOST %s and PORT `%d`", serverConfig.Host, serverConfig.Port)
 
 	log.Fatal(http.ListenAndServe(
 		fmt.Sprintf("%s:%d", serverConfig.Host, serverConfig.Port),

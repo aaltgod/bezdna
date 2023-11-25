@@ -1,17 +1,21 @@
 include .env
 export
 
-run: build compose-up
+run:
 	@sleep 1
 	$(info "RUN $(APP_NAME)")
+	build
+	compose-up
+	
 	sudo ./bin/$(APP_NAME)
 
-build: clean
+build:
 	$(info "BUILD")
 	go mod download && go build -o bin/$(APP_NAME) cmd/main.go
 
-clean: compose-stop
+clean:
 	$(info "CLEAN")
+	compose-stop
 	rm -rf bin || true
 
 install-goose:
