@@ -2,10 +2,11 @@ package handler
 
 import (
 	"encoding/json"
-	"github.com/aaltgod/bezdna/internal/domain"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net/http"
+
+	"github.com/aaltgod/bezdna/internal/domain"
+	log "github.com/sirupsen/logrus"
 )
 
 func (h *handler) GetStreamsByService(w http.ResponseWriter, req *http.Request) {

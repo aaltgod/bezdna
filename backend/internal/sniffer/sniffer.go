@@ -1,7 +1,7 @@
 package sniffer
 
 import (
-	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -17,7 +17,8 @@ import (
 
 type Config struct {
 	ServiceName string
-	Port        int32
+	ServicePort int32
+	FlagRegexp  *regexp.Regexp
 }
 
 type Sniffer struct {
@@ -25,10 +26,24 @@ type Sniffer struct {
 
 	interfaceName string
 
-	mu                      *sync.Mutex
+	configMu            *sync.Mutex
+	configByServicePort map[int32]Config
+
+	streamMu                *sync.Mutex
 	tcpStreamInfoByPortBind map[portBind]tcpStreamInfo
 
 	bufferCh chan tcpStreamInfo
+}
+
+type direction string
+
+const (
+	in  direction = "IN"
+	out direction = "OUT"
+)
+
+func (d direction) String() string {
+	return string(d)
 }
 
 type portBind struct {
@@ -36,8 +51,14 @@ type portBind struct {
 	dst layers.TCPPort
 }
 
+type flag struct {
+	text      string
+	direction direction
+}
+
 type tcpStreamInfo struct {
 	text      string
+	flags     []flag
 	completed bool
 	startedAt time.Time
 	updatedAt time.Time
@@ -49,7 +70,9 @@ func New(interfaceName string, dbRepository db.Repository) *Sniffer {
 	return &Sniffer{
 		dbRepository:            dbRepository,
 		interfaceName:           interfaceName,
-		mu:                      &sync.Mutex{},
+		configMu:                &sync.Mutex{},
+		configByServicePort:     make(map[int32]Config),
+		streamMu:                &sync.Mutex{},
 		tcpStreamInfoByPortBind: make(map[portBind]tcpStreamInfo),
 		bufferCh:                make(chan tcpStreamInfo),
 	}
@@ -69,14 +92,24 @@ func (s *Sniffer) Run(ctx context.Context) error {
 	}
 
 	for _, service := range services {
-		if err = s.AddConfig(Config{
+		s.configByServicePort[service.Port] = Config{
 			ServiceName: service.Name,
-			Port:        service.Port,
-		}); err != nil {
-			return errors.Wrap(err, WrapAddConfig)
+			ServicePort: service.Port,
+			// trust database data
+			FlagRegexp: regexp.MustCompile(service.FlagRegexp),
 		}
 	}
 
+	handle, err := pcap.OpenLive(s.interfaceName, 1600, true, pcap.BlockForever)
+	if err != nil {
+		return errors.Wrap(err, WrapOpenLive)
+	}
+
+	if err = handle.SetBPFFilter("tcp"); err != nil {
+		return errors.Wrap(err, WrapSetBPFFilter)
+	}
+
+	go s.process(ctx, handle)
 	go s.manageTCPStream(ctx)
 	go s.manageBuffer(ctx)
 
@@ -84,26 +117,37 @@ func (s *Sniffer) Run(ctx context.Context) error {
 }
 
 func (s *Sniffer) AddConfig(config Config) error {
-	if handle, err := pcap.OpenLive(s.interfaceName, 1600, true, pcap.BlockForever); err != nil {
-		return errors.Wrap(err, WrapOpenLive)
-	} else if err = handle.SetBPFFilter(fmt.Sprintf("tcp and port %d", config.Port)); err != nil {
-		return errors.Wrap(err, WrapSetBPFFilter)
-	} else {
-		log.Infof(
-			"START LISTEN service with name `%s` and port `%d`\n",
-			config.ServiceName, config.Port)
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
 
-		go s.process(context.Background(), config, handle)
-	}
+	s.configByServicePort[config.ServicePort] = config
 
 	return nil
 }
 
-func (s *Sniffer) checkTCPConn(_ context.Context, config Config, tcpPacket *layers.TCP) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Sniffer) checkTCPConn(_ context.Context, config Config, tcpPacket *layers.TCP, direction direction) bool {
+	s.streamMu.Lock()
+	defer s.streamMu.Unlock()
 
-	timeNow := time.Now()
+	var (
+		timeNow = time.Now()
+		payload = tcpPacket.Payload
+		flags   = func() []flag {
+			var (
+				regFlags = config.FlagRegexp.FindAllString(string(payload), -1)
+				flags    = make([]flag, 0, len(regFlags))
+			)
+
+			for _, rf := range regFlags {
+				flags = append(flags, flag{
+					text:      rf,
+					direction: direction,
+				})
+			}
+
+			return flags
+		}()
+	)
 
 	info, exist := s.tcpStreamInfoByPortBind[portBind{
 		src: tcpPacket.SrcPort,
@@ -116,7 +160,8 @@ func (s *Sniffer) checkTCPConn(_ context.Context, config Config, tcpPacket *laye
 		}]
 		if exist {
 			info.updatedAt = timeNow
-			info.text = info.text + string(tcpPacket.Payload)
+			info.text = info.text + string(payload)
+			info.flags = append(info.flags, flags...)
 
 			s.tcpStreamInfoByPortBind[portBind{
 				src: tcpPacket.DstPort,
@@ -127,10 +172,11 @@ func (s *Sniffer) checkTCPConn(_ context.Context, config Config, tcpPacket *laye
 				src: tcpPacket.SrcPort,
 				dst: tcpPacket.DstPort,
 			}] = tcpStreamInfo{
-				text:      string(tcpPacket.Payload),
+				text:      string(payload),
 				Config:    config,
 				startedAt: timeNow,
 				updatedAt: timeNow,
+				flags:     flags,
 			}
 		}
 
@@ -139,12 +185,11 @@ func (s *Sniffer) checkTCPConn(_ context.Context, config Config, tcpPacket *laye
 
 	if tcpPacket.FIN || tcpPacket.RST {
 		info.completed = true
-
-		log.Infoln(s.tcpStreamInfoByPortBind)
 	}
 
 	info.updatedAt = timeNow
-	info.text = info.text + string(tcpPacket.Payload)
+	info.text = info.text + string(payload)
+	info.flags = append(info.flags, flags...)
 
 	s.tcpStreamInfoByPortBind[portBind{
 		src: tcpPacket.SrcPort,
@@ -174,27 +219,50 @@ func (s *Sniffer) manageBuffer(ctx context.Context) {
 			var (
 				endedStreamAmount    = len(endedStreamBuffer)
 				endedStreamsToInsert = make([]domain.Stream, 0, batchSize)
+				flagsSlice           = make([][]flag, 0, batchSize)
 			)
 
-			log.Println("BUFFER: ", endedStreamBuffer)
-
 			if endedStreamAmount != 0 {
-				var i int
+				var (
+					i int
+				)
+
+				endedStreamBuffer[i].FlagRegexp.FindAllString(endedStreamBuffer[i].text, 1)
 
 				for ; i < endedStreamAmount && i < batchSize; i++ {
 					endedStreamsToInsert = append(endedStreamsToInsert, domain.Stream{
 						ServiceName: endedStreamBuffer[i].ServiceName,
-						ServicePort: endedStreamBuffer[i].Port,
+						ServicePort: endedStreamBuffer[i].ServicePort,
+						FlagRegexp:  endedStreamBuffer[i].FlagRegexp.String(),
 						Text:        &endedStreamBuffer[i].text,
 						StartedAt:   endedStreamBuffer[i].startedAt,
 						EndedAt:     endedStreamBuffer[i].updatedAt,
 					})
+
+					flagsSlice = append(flagsSlice, endedStreamBuffer[i].flags)
 				}
 
-				log.Println("TO INSERT ", endedStreamsToInsert)
-
-				if err := s.dbRepository.InsertStreams(endedStreamsToInsert); err != nil {
+				streamIDs, err := s.dbRepository.InsertStreams(endedStreamsToInsert)
+				if err != nil {
 					log.Errorln(errors.Wrap(err, WrapInsertStreamByService))
+
+					break
+				}
+
+				flagsToInsert := make([]domain.Flag, 0, len(flagsSlice))
+
+				for i, flags := range flagsSlice {
+					for _, flag := range flags {
+						flagsToInsert = append(flagsToInsert, domain.Flag{
+							StreamID:  streamIDs[i],
+							Text:      flag.text,
+							Direction: domain.FlagDirection(flag.direction),
+						})
+					}
+				}
+
+				if err := s.dbRepository.InsertFlags(flagsToInsert); err != nil {
+					log.Errorln(errors.Wrap(err, "dbRepository.InsertFlags"))
 
 					break
 				}
@@ -208,50 +276,70 @@ func (s *Sniffer) manageBuffer(ctx context.Context) {
 }
 
 func (s *Sniffer) manageTCPStream(ctx context.Context) {
-	timeout := 10 * time.Second
-	ticker := time.NewTicker(timeout)
+	ttl := 10 * time.Second
+	ticker := time.NewTicker(ttl)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.mu.Lock()
+			s.streamMu.Lock()
 
 			for portBind, tcpStreamInfo := range s.tcpStreamInfoByPortBind {
-				timeToCompare := time.Now().Add(-timeout)
+				timeToCompare := time.Now().Add(-ttl)
 
-				if tcpStreamInfo.completed || tcpStreamInfo.updatedAt.Before(timeToCompare) || tcpStreamInfo.updatedAt.Equal(timeToCompare) {
+				if tcpStreamInfo.completed || tcpStreamInfo.startedAt.Before(timeToCompare) || tcpStreamInfo.startedAt.Equal(timeToCompare) {
 					delete(s.tcpStreamInfoByPortBind, portBind)
 
-					s.bufferCh <- tcpStreamInfo
-
-					log.Println("DELETE", tcpStreamInfo)
+					if len(tcpStreamInfo.text) != 0 {
+						s.bufferCh <- tcpStreamInfo
+					}
 				}
 			}
 
-			s.mu.Unlock()
+			s.streamMu.Unlock()
 
-			ticker.Reset(timeout)
+			ticker.Reset(ttl)
 		}
 	}
 }
 
-func (s *Sniffer) process(ctx context.Context, config Config, handle *pcap.Handle) {
+func (s *Sniffer) process(ctx context.Context, handle *pcap.Handle) {
 	for packet := range gopacket.NewPacketSource(handle, handle.LinkType()).Packets() {
 		for _, layer := range packet.Layers() {
 			switch layer.LayerType() {
 			case layers.LayerTypeTCP:
 				tcpPacket, _ := packet.Layer(layers.LayerTypeTCP).(*layers.TCP)
-				payload := string(tcpPacket.Payload)
 
-				log.Infoln(config, payload)
+				src, dst := tcpPacket.SrcPort, tcpPacket.DstPort
 
-				log.Infoln(tcpPacket.SrcPort, tcpPacket.DstPort)
+				func() {
+					s.configMu.Lock()
+					defer s.configMu.Unlock()
 
-				if !s.checkTCPConn(ctx, config, tcpPacket) {
-					break
-				}
+					var (
+						config    Config
+						direction direction
+					)
+
+					config, exists := s.configByServicePort[int32(src)]
+					if exists {
+						direction = out
+					} else if config, exists = s.configByServicePort[int32(dst)]; exists {
+						direction = in
+					} else {
+						return
+					}
+
+					// log.Infoln("CONFIG PAYLOAD ", src, dst, payload)
+
+					// log.Infoln(tcpPacket.SrcPort, tcpPacket.DstPort)
+
+					if !s.checkTCPConn(ctx, config, tcpPacket, direction) {
+						return
+					}
+				}()
 			}
 		}
 	}

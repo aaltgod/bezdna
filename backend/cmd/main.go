@@ -7,7 +7,8 @@ import (
 
 	"github.com/aaltgod/bezdna/internal/config"
 	"github.com/aaltgod/bezdna/internal/database"
-	"github.com/aaltgod/bezdna/internal/handler"
+	httpHandler "github.com/aaltgod/bezdna/internal/handler/http"
+	wsHandler "github.com/aaltgod/bezdna/internal/handler/ws"
 	"github.com/aaltgod/bezdna/internal/repository/db"
 	"github.com/aaltgod/bezdna/internal/service"
 	"github.com/aaltgod/bezdna/internal/sniffer"
@@ -20,7 +21,7 @@ func main() {
 	ctx := context.Background()
 
 	log.SetFormatter(&log.JSONFormatter{})
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.InfoLevel)
 
 	serverConfig, err := config.ProvideServerConfig()
 	if err != nil {
@@ -47,23 +48,28 @@ func main() {
 		log.Fatalln("couldn't run sniffer", err)
 	}
 
-	handler := handler.New(service.New(sn, db.New(dbAdapter)))
+	service := service.New(sn, db.New(dbAdapter))
+	httpHandler := httpHandler.New(service)
+	wsHandler := wsHandler.New(service)
 
 	router := chi.NewRouter()
 
 	router.Use(cors.AllowAll().Handler)
 
 	router.Mount("/api", func() chi.Router {
-		r := chi.NewRouter()
+		router.Post("/create-service", httpHandler.UpsertService)
+		router.Get("/get-services", httpHandler.GetServices)
 
-		r.Post("/create-service", handler.CreateService)
-		r.Get("/get-services", handler.GetServices)
+		router.Get("/get-streams-by-service", httpHandler.GetStreamsByService)
 
-		r.Get("/get-streams-by-service", handler.GetStreamsByService)
+		router.Mount("/ws", func() chi.Router {
+			router.HandleFunc("/get-streams-by-service", wsHandler.GetStreamsByService)
+			router.HandleFunc("/get-streams", wsHandler.GetStreams)
 
-		r.HandleFunc("/ws", handler.WSGetStreams)
+			return router
+		}())
 
-		return r
+		return router
 	}())
 
 	log.Infof("START SERVER on HOST %s and PORT `%d`", serverConfig.Host, serverConfig.Port)

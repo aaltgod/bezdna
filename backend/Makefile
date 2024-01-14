@@ -1,21 +1,23 @@
 include .env
 export
 
-run:
+APP_NAME=bezdna
+
+.PHONY: run
+run: compose-up build
 	@sleep 1
 	$(info "RUN $(APP_NAME)")
-	build
-	compose-up
 	
 	sudo ./bin/$(APP_NAME)
 
+.PHONY: build
 build:
 	$(info "BUILD")
 	go mod download && go build -o bin/$(APP_NAME) cmd/main.go
 
-clean:
+.PHONY: 
+clean: compose-down
 	$(info "CLEAN")
-	compose-stop
 	rm -rf bin || true
 
 install-goose:
@@ -37,9 +39,14 @@ migration-down:
 migration-reset:
 	goose -dir ${LOCAL_MIGRATION_DIR} postgres ${LOCAL_MIGRATION_DSN} reset
 
+.PHONY: compose-up
 compose-up:
 	docker compose -p bezdna -f ./docker-compose.yaml up -d
+
+.PHONY: compose-stop
 compose-stop:
 	docker compose -p bezdna -f ./docker-compose.yaml stop
+
+.PHONY: compose-down	
 compose-down:
 	docker compose -p bezdna -f ./docker-compose.yaml down

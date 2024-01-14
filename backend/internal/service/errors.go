@@ -3,7 +3,7 @@ package service
 import "errors"
 
 const (
-	WrapInsertService       = "dbRepository.InsertService"
+	WrapUpsertService       = "dbRepository.UpsertService"
 	WrapGetServices         = "dbRepository.GetServices"
 	WrapGetStreamsByService = "dbRepository.GetStreamsByService"
 

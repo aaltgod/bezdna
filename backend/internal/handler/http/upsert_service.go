@@ -11,7 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (h *handler) CreateService(w http.ResponseWriter, req *http.Request) {
+func (h *handler) UpsertService(w http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		log.Errorln(WrapfCreateService(err, WrapReadAll))
@@ -31,7 +31,7 @@ func (h *handler) CreateService(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := h.service.CreateService(service); err != nil {
+	if err := h.service.UpsertService(service); err != nil {
 		log.Errorln(WrapfCreateService(err, WrapCreateService))
 
 		if errors.Is(err, serv.ErrAlreadyExist) {

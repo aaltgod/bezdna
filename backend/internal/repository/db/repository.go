@@ -1,11 +1,8 @@
 package db
 
 import (
-	"time"
-
 	"github.com/aaltgod/bezdna/internal/database"
 	"github.com/aaltgod/bezdna/internal/domain"
-	"github.com/jackc/pgx"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
 )
@@ -20,88 +17,12 @@ func New(db *database.DBAdapter) Repository {
 	}
 }
 
-func (r *repository) InsertService(service domain.Service) error {
-	_, err := r.db.Pool.Exec(queryInsertService, service.Name, service.Port)
-	if err != nil {
-		return errors.Wrap(err, WrapExec)
-	}
-
-	return nil
-}
-
-func (r *repository) GetServiceByPort(port int32) (*domain.Service, error) {
-	service := Service{}
-
-	if err := r.db.Pool.QueryRow(
-		queryGetServiceByPort,
-		port,
-	).Scan(
-		&service.Name,
-		&service.Port,
-	); err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-
-		return nil, errors.Wrap(err, WrapScan)
-	}
-
-	domainService := service.ToDomain()
-
-	return &domainService, nil
-}
-
-func (r *repository) GetServices() ([]domain.Service, error) {
-	rows, err := r.db.Pool.Query(queryGetServices)
-	if err != nil {
-		return nil, errors.Wrap(err, WrapQuery)
-	}
-	defer rows.Close()
-
-	var result Services
-
-	for rows.Next() {
-		service := Service{}
-
-		if err = rows.Scan(&service.Name, &service.Port); err != nil {
-			return nil, errors.Wrap(err, WrapScan)
-		}
-
-		result = append(result, service)
-	}
-
-	return result.ToDomain(), nil
-}
-
-func (r *repository) InsertStreams(streams []domain.Stream) error {
-	streamAmount := len(streams)
-	if streamAmount == 0 {
-		return nil
-	}
-
-	var (
-		serviceNames = make([]string, 0, streamAmount)
-		servicePorts = make([]int32, 0, streamAmount)
-		texts        = make([]*string, 0, streamAmount)
-		startedAt    = make([]time.Time, 0, streamAmount)
-		endedAt      = make([]time.Time, 0, streamAmount)
-	)
-
-	for _, stream := range streams {
-		serviceNames = append(serviceNames, stream.ServiceName)
-		servicePorts = append(servicePorts, stream.ServicePort)
-		texts = append(texts, stream.Text)
-		startedAt = append(startedAt, stream.StartedAt)
-		endedAt = append(endedAt, stream.EndedAt)
-	}
-
+func (r *repository) UpsertFlagRegexp(flagRegexp, serviceName string, servicePort int32) error {
 	if _, err := r.db.Pool.Exec(
-		queryInsertStreams,
-		pq.Array(serviceNames),
-		pq.Array(servicePorts),
-		pq.Array(texts),
-		pq.Array(startedAt),
-		pq.Array(endedAt),
+		queryUpsertFlagRegexp,
+		flagRegexp,
+		serviceName,
+		servicePort,
 	); err != nil {
 		return errors.Wrap(err, "db.Pool.Exec")
 	}
@@ -109,39 +30,45 @@ func (r *repository) InsertStreams(streams []domain.Stream) error {
 	return nil
 }
 
-func (r *repository) GetStreamsByService(
-	service domain.Service, offset, limit int64,
-) ([]domain.Stream, error) {
+func (r *repository) GetFlagRegexpsByServices(services []domain.Service) ([]string, error) {
+	serviceAmount := len(services)
+	if serviceAmount == 0 {
+		return nil, nil
+	}
+
+	var (
+		serviceNames = make([]string, 0, serviceAmount)
+		servicePorts = make([]int32, 0, serviceAmount)
+	)
+
+	for _, service := range services {
+		serviceNames = append(serviceNames, service.Name)
+		servicePorts = append(servicePorts, service.Port)
+	}
+
 	rows, err := r.db.Pool.Query(
-		queryGetStreamsByService,
-		service.Name,
-		service.Port,
-		offset,
-		limit,
+		queryGetRegexpsByServices,
+		pq.Array(serviceNames),
+		pq.Array(servicePorts),
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, WrapQuery)
 	}
 	defer rows.Close()
 
-	var result Streams
+	result := make([]string, 0, len(services))
 
 	for rows.Next() {
-		stream := stream{}
+		var flagRegexp string
 
 		if err = rows.Scan(
-			&stream.ID,
-			&stream.ServiceName,
-			&stream.ServicePort,
-			&stream.Text,
-			&stream.StartedAt,
-			&stream.EndedAt,
+			&flagRegexp,
 		); err != nil {
 			return nil, errors.Wrap(err, WrapScan)
 		}
 
-		result = append(result, stream)
+		result = append(result, flagRegexp)
 	}
 
-	return result.ToDomain(), nil
+	return result, nil
 }
