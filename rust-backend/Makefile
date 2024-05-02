@@ -1,16 +1,22 @@
 include .env
 export
 
-run: build compose-up
+APP_NAME=rust-backend
+
+.PHONY: run
+run: compose-up build
 	@sleep 1
 	$(info "RUN $(APP_NAME)")
-	sudo ./bin/$(APP_NAME)
 
-build: clean
+	sudo RUST_LOG=info ./target/release/$(APP_NAME)
+
+.PHONY: build
+build:
 	$(info "BUILD")
-	go mod download && go build -o bin/$(APP_NAME) cmd/main.go
+	cargo build --release
 
-clean: compose-stop
+.PHONY:
+clean: compose-down
 	$(info "CLEAN")
 	rm -rf bin || true
 
@@ -33,9 +39,14 @@ migration-down:
 migration-reset:
 	goose -dir ${LOCAL_MIGRATION_DIR} postgres ${LOCAL_MIGRATION_DSN} reset
 
+.PHONY: compose-up
 compose-up:
 	docker compose -p bezdna -f ./docker-compose.yaml up -d
+
+.PHONY: compose-stop
 compose-stop:
 	docker compose -p bezdna -f ./docker-compose.yaml stop
+
+.PHONY: compose-down
 compose-down:
 	docker compose -p bezdna -f ./docker-compose.yaml down

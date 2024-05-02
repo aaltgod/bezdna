@@ -1,28 +1,27 @@
-pub mod domain;
-pub mod handler;
-pub mod sniffer;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate log;
 
-use std::{sync::mpsc::sync_channel, time::Duration};
+use std::{sync::mpsc::sync_channel, time, time::Duration};
 
 use axum::{
     body::{Body, HttpBody},
+    Extension,
     http::{Request, StatusCode},
     middleware::{self, Next},
     response::IntoResponse,
-    routing::{get, post, Route},
-    Extension, Router,
+    Router, routing::{get, post, Route},
 };
+use sqlx::{PgPool, postgres::PgPoolOptions};
+use tokio::sync::{mpsc, mpsc::Sender};
+
 use handler::{create_service, get_services};
 use sniffer::Sniffer;
 
-use sqlx::{postgres::PgPoolOptions, PgPool};
-use tokio::sync::{mpsc, mpsc::Sender};
-
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate log;
+pub mod domain;
+pub mod handler;
+pub mod sniffer;
 
 #[derive(Clone)]
 pub struct AppContext {
@@ -43,6 +42,8 @@ async fn main() {
         .await
         .unwrap();
 
+    tx.send(3123).await.unwrap();
+
     let app = Router::new()
         .route("/get-services", get(get_services))
         .route("/create-service", post(create_service))
@@ -53,7 +54,12 @@ async fn main() {
         }));
 
     futures_util::future::join_all(vec![
-        tokio::spawn(async move { Sniffer::new(pool, "lo").run(rx).await.expect("sniffer") }),
+        tokio::spawn(async move {
+            Sniffer::new(pool, "lo", chrono::Duration::seconds(10))
+                .run(rx)
+                .await
+                .expect("sniffer")
+        }),
         tokio::spawn(async move {
             axum::Server::bind(&"0.0.0.0:3123".parse().unwrap())
                 .serve(app.into_make_service())
