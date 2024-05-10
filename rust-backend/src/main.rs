@@ -42,8 +42,6 @@ async fn main() {
         .await
         .unwrap();
 
-    tx.send(3123).await.unwrap();
-
     let app = Router::new()
         .route("/get-services", get(get_services))
         .route("/create-service", post(create_service))
@@ -55,7 +53,7 @@ async fn main() {
 
     futures_util::future::join_all(vec![
         tokio::spawn(async move {
-            Sniffer::new(pool, "lo", chrono::Duration::seconds(10))
+            Sniffer::new(pool, "lo0", chrono::Duration::seconds(10), chrono::Duration::seconds(20))
                 .run(rx)
                 .await
                 .expect("sniffer")
@@ -67,7 +65,7 @@ async fn main() {
                 .expect("server")
         }),
     ])
-    .await;
+        .await;
 }
 
 async fn info_middleware(
