@@ -1,14 +1,9 @@
 use std::collections::HashMap;
 use std::io::Error;
-use std::net::Ipv4Addr;
 use std::ops::Sub;
-use std::str::from_utf8;
 use std::sync::{Arc, Mutex};
-use std::thread::sleep;
 use std::time;
-use std::time::{Instant, SystemTime};
 
-use chrono::{DurationRound, Local, Utc};
 use pnet::{
     datalink::Channel::Ethernet,
     packet::{
@@ -17,8 +12,10 @@ use pnet::{
         Packet,
     },
 };
-use pnet::datalink::{ChannelType, Config, EtherType};
+use pnet::datalink::{bpf, ChannelType, Config, EtherType};
+use pnet::packet::ethernet::EtherTypes::Ipv4;
 use pnet::packet::ip::IpNextHeaderProtocols;
+use pnet::packet::PrimitiveValues;
 use pnet::packet::tcp::{TcpFlags, TcpPacket};
 use sqlx::{Pool, Postgres};
 use tokio::select;
@@ -41,7 +38,7 @@ struct TcpPacketInfo {
     payload: String,
     packet_direction: PacketDirection,
     completed: bool,
-    at: chrono::DateTime<Utc>,
+    at: chrono::DateTime<chrono::Utc>,
 }
 
 pub struct Sniffer {
@@ -49,15 +46,22 @@ pub struct Sniffer {
     interface_name: String,
     tcp_packet_info_by_port_pair: Arc<Mutex<HashMap<PortPair, Vec<TcpPacketInfo>>>>,
     tcp_stream_ttl: chrono::Duration,
+    max_stream_ttl: chrono::Duration,
 }
 
 impl Sniffer {
-    pub fn new(db: Pool<Postgres>, interface_name: &str, tcp_stream_ttl: chrono::Duration) -> Self {
+    pub fn new(
+        db: Pool<Postgres>,
+        interface_name: &str,
+        tcp_stream_ttl: chrono::Duration,
+        max_stream_ttl: chrono::Duration,
+    ) -> Self {
         Sniffer {
             db,
             interface_name: interface_name.to_string(),
             tcp_packet_info_by_port_pair: Arc::new(Mutex::new(HashMap::new())),
             tcp_stream_ttl,
+            max_stream_ttl,
         }
     }
 
@@ -66,13 +70,17 @@ impl Sniffer {
         let self_handler = Arc::clone(&arc_self);
         let self_manager = Arc::clone(&arc_self);
 
-        let interfaces = pnet::datalink::interfaces()
-            .into_iter()
-            .filter(|interface| interface.name.eq(self_handler.interface_name.as_str()))
-            .next()
+        let interface = pnet::datalink::interfaces()
+            .into_iter().find(|interface| interface.name.eq(self_handler.interface_name.as_str()))
             .unwrap();
 
-        let (_tx, mut rx) = match pnet::datalink::channel(&interfaces, Config::default()) {
+        let (_tx, mut rx) = match bpf::channel(&interface, bpf::Config {
+            write_buffer_size: 4096,
+            read_buffer_size: 4096,
+            read_timeout: None,
+            write_timeout: None,
+            bpf_fd_attempts: 1000,
+        }) {
             Ok(Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => panic!("INVALID type"),
             Err(e) => panic!("{e}"),
@@ -101,16 +109,16 @@ impl Sniffer {
                     }
                 }
             }),
-            tokio::spawn(async move { self_manager.manage_tcp_streams() }),
+            tokio::spawn(async move { self_manager.manage_tcp_streams().await }),
         ])
-        .await;
+            .await;
 
         Ok(())
     }
 
-    fn manage_tcp_streams(&self) {
+    async fn manage_tcp_streams(&self) {
         loop {
-            sleep(time::Duration::from_secs(5));
+            tokio::time::sleep(time::Duration::from_secs(5)).await;
 
             let mut tcp_packet_info_by_port_pair =
                 self.tcp_packet_info_by_port_pair.lock().unwrap();
@@ -120,11 +128,14 @@ impl Sniffer {
 
             for (port_pair, tcp_packet_info) in tcp_packet_info_by_port_pair.iter() {
                 if !tcp_packet_info.is_empty() {
-                    let time_now = Local::now().to_utc();
+                    let time_now = chrono::Local::now().to_utc();
 
                     if time_now
                         .sub(tcp_packet_info.last().unwrap().at)
-                        .gt(&self.tcp_stream_ttl)
+                        .gt(&self.tcp_stream_ttl) ||
+                        time_now.
+                            sub(tcp_packet_info.first().unwrap().at)
+                            .gt(&self.max_stream_ttl)
                     {
                         warn!("DONE: {} {:?}", tcp_packet_info.len(), port_pair);
 
@@ -133,7 +144,7 @@ impl Sniffer {
                 }
             }
 
-            warn!("{:?}", port_pairs_to_remove);
+            warn!("port_pairs_to_remove LEN: {}", port_pairs_to_remove.len());
 
             for pair in port_pairs_to_remove {
                 tcp_packet_info_by_port_pair.remove(&pair);
@@ -142,20 +153,16 @@ impl Sniffer {
     }
 
     fn handle_eth_packet(&self, packet: EthernetPacket) {
-        match packet.get_ethertype() {
-            EtherTypes::Ipv4 => {
-                let ipv4_packet = Ipv4Packet::new(packet.payload()).unwrap();
+        if packet.get_ethertype() == Ipv4
+            // TODO: почему-то на loopback'е не возвращает тип протокола.
+            || packet.get_ethertype().to_primitive_values().0 == 0 {
+            let ipv4_packet = Ipv4Packet::new(packet.payload()).unwrap();
 
-                match ipv4_packet.get_next_level_protocol() {
-                    IpNextHeaderProtocols::Tcp => {
-                        let tcp_packet = TcpPacket::new(ipv4_packet.payload()).unwrap();
+            if ipv4_packet.get_next_level_protocol() == IpNextHeaderProtocols::Tcp {
+                let tcp_packet = TcpPacket::new(ipv4_packet.payload()).unwrap();
 
-                        self.handle_tcp_packet(tcp_packet);
-                    }
-                    _ => {}
-                }
+                self.handle_tcp_packet(tcp_packet);
             }
-            _ => {}
         }
     }
 
@@ -208,7 +215,7 @@ impl Sniffer {
             .and_modify(|i| i.push(info.clone()))
             .or_insert(vec![info.clone()]);
 
-        warn!("DATA: {:?}", tcp_packet_info_by_port_pair);
+        warn!("tcp_packet_info_by_port_pair LEN: {}", tcp_packet_info_by_port_pair.len());
 
         if packet.get_flags().eq(&TcpFlags::FIN) || packet.get_flags().eq(&TcpFlags::RST) {
             tcp_packet_info_by_port_pair

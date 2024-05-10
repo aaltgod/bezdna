@@ -1,12 +1,15 @@
-use crate::AppContext;
-use axum::{http::StatusCode, response::IntoResponse, Extension, Json};
+use axum::{Extension, http::StatusCode, Json, response::IntoResponse};
 use serde::{Deserialize, Serialize};
+
+use crate::AppContext;
 
 pub async fn create_service(
     ctx: Extension<AppContext>,
     Json(input): Json<CreateService>,
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::info!("{:?}", input);
+
+    ctx.tx.send(input.port as u16).await.unwrap();
 
     // match sqlx::query_as!(
     //     Service,
@@ -47,7 +50,6 @@ pub async fn create_service(
     //     return StatusCode::INTERNAL_SERVER_ERROR;
     // })?;
     //
-    // ctx.tx.send(service.port as u16).await.unwrap();
 
     Ok(Json(""))
 }
