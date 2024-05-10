@@ -3,24 +3,28 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 
-use std::{sync::mpsc::sync_channel, time, time::Duration};
+use std::time::Duration;
 
 use axum::{
-    body::{Body, HttpBody},
+    body::Body,
     Extension,
     http::{Request, StatusCode},
     middleware::{self, Next},
     response::IntoResponse,
-    Router, routing::{get, post, Route},
+    Router, routing::{get, post},
 };
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tokio::sync::{mpsc, mpsc::Sender};
 
 use handler::{create_service, get_services};
+use repository::db::postgres::flags as flags_repo;
+use repository::db::postgres::services as services_repo;
+use repository::db::postgres::streams as streams_repo;
 use sniffer::Sniffer;
 
 pub mod domain;
 pub mod handler;
+pub mod repository;
 pub mod sniffer;
 
 #[derive(Clone)]
@@ -42,6 +46,10 @@ async fn main() {
         .await
         .unwrap();
 
+    let _flags_repo = flags_repo::Repository::new(pool.clone());
+    let _services_repo = services_repo::Repository::new(pool.clone());
+    let _stream_repo = streams_repo::Repository::new(pool.clone());
+
     let app = Router::new()
         .route("/get-services", get(get_services))
         .route("/create-service", post(create_service))
@@ -53,10 +61,15 @@ async fn main() {
 
     futures_util::future::join_all(vec![
         tokio::spawn(async move {
-            Sniffer::new(pool, "lo0", chrono::Duration::seconds(10), chrono::Duration::seconds(20))
-                .run(rx)
-                .await
-                .expect("sniffer")
+            Sniffer::new(
+                pool,
+                "lo0",
+                chrono::Duration::seconds(10),
+                chrono::Duration::seconds(20),
+            )
+            .run(rx)
+            .await
+            .expect("sniffer")
         }),
         tokio::spawn(async move {
             axum::Server::bind(&"0.0.0.0:3123".parse().unwrap())
@@ -65,7 +78,7 @@ async fn main() {
                 .expect("server")
         }),
     ])
-        .await;
+    .await;
 }
 
 async fn info_middleware(

@@ -21,7 +21,7 @@ use sqlx::{Pool, Postgres};
 use tokio::select;
 use tokio::sync::mpsc::Receiver;
 
-use crate::domain::PacketDirection;
+use crate::domain::FlagDirection;
 
 lazy_static! {
     static ref PORTS_TO_SNIFF: Mutex<HashMap<u16, bool>> = Mutex::new(HashMap::new());
@@ -36,7 +36,7 @@ struct PortPair {
 #[derive(Debug, Clone)]
 struct TcpPacketInfo {
     payload: String,
-    packet_direction: PacketDirection,
+    packet_direction: FlagDirection,
     completed: bool,
     at: chrono::DateTime<chrono::Utc>,
 }
@@ -71,16 +71,20 @@ impl Sniffer {
         let self_manager = Arc::clone(&arc_self);
 
         let interface = pnet::datalink::interfaces()
-            .into_iter().find(|interface| interface.name.eq(self_handler.interface_name.as_str()))
+            .into_iter()
+            .find(|interface| interface.name.eq(self_handler.interface_name.as_str()))
             .unwrap();
 
-        let (_tx, mut rx) = match bpf::channel(&interface, bpf::Config {
-            write_buffer_size: 4096,
-            read_buffer_size: 4096,
-            read_timeout: None,
-            write_timeout: None,
-            bpf_fd_attempts: 1000,
-        }) {
+        let (_tx, mut rx) = match bpf::channel(
+            &interface,
+            bpf::Config {
+                write_buffer_size: 4096,
+                read_buffer_size: 4096,
+                read_timeout: None,
+                write_timeout: None,
+                bpf_fd_attempts: 1000,
+            },
+        ) {
             Ok(Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => panic!("INVALID type"),
             Err(e) => panic!("{e}"),
@@ -111,7 +115,7 @@ impl Sniffer {
             }),
             tokio::spawn(async move { self_manager.manage_tcp_streams().await }),
         ])
-            .await;
+        .await;
 
         Ok(())
     }
@@ -132,9 +136,9 @@ impl Sniffer {
 
                     if time_now
                         .sub(tcp_packet_info.last().unwrap().at)
-                        .gt(&self.tcp_stream_ttl) ||
-                        time_now.
-                            sub(tcp_packet_info.first().unwrap().at)
+                        .gt(&self.tcp_stream_ttl)
+                        || time_now
+                            .sub(tcp_packet_info.first().unwrap().at)
                             .gt(&self.max_stream_ttl)
                     {
                         warn!("DONE: {} {:?}", tcp_packet_info.len(), port_pair);
@@ -155,7 +159,8 @@ impl Sniffer {
     fn handle_eth_packet(&self, packet: EthernetPacket) {
         if packet.get_ethertype() == Ipv4
             // TODO: почему-то на loopback'е не возвращает тип протокола.
-            || packet.get_ethertype().to_primitive_values().0 == 0 {
+            || packet.get_ethertype().to_primitive_values().0 == 0
+        {
             let ipv4_packet = Ipv4Packet::new(packet.payload()).unwrap();
 
             if ipv4_packet.get_next_level_protocol() == IpNextHeaderProtocols::Tcp {
@@ -170,7 +175,7 @@ impl Sniffer {
         let source_port = packet.get_source();
         let destination_port = packet.get_destination();
 
-        let (port_pair, packet_direction): (PortPair, Option<PacketDirection>) = {
+        let (port_pair, packet_direction): (PortPair, Option<FlagDirection>) = {
             let ports = PORTS_TO_SNIFF.lock().unwrap();
 
             if ports.contains_key(&destination_port) {
@@ -179,7 +184,7 @@ impl Sniffer {
                         src: source_port,
                         dst: destination_port,
                     },
-                    Some(PacketDirection::IN),
+                    Some(FlagDirection::IN),
                 )
             } else if ports.contains_key(&source_port) {
                 (
@@ -187,7 +192,7 @@ impl Sniffer {
                         src: destination_port,
                         dst: source_port,
                     },
-                    Some(PacketDirection::OUT),
+                    Some(FlagDirection::OUT),
                 )
             } else {
                 return;
@@ -215,7 +220,10 @@ impl Sniffer {
             .and_modify(|i| i.push(info.clone()))
             .or_insert(vec![info.clone()]);
 
-        warn!("tcp_packet_info_by_port_pair LEN: {}", tcp_packet_info_by_port_pair.len());
+        warn!(
+            "tcp_packet_info_by_port_pair LEN: {}",
+            tcp_packet_info_by_port_pair.len()
+        );
 
         if packet.get_flags().eq(&TcpFlags::FIN) || packet.get_flags().eq(&TcpFlags::RST) {
             tcp_packet_info_by_port_pair
