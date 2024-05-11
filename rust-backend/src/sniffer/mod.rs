@@ -21,7 +21,7 @@ use sqlx::{Pool, Postgres};
 use tokio::select;
 use tokio::sync::mpsc::Receiver;
 
-use crate::domain::FlagDirection;
+use crate::domain::PacketDirection;
 
 lazy_static! {
     static ref PORTS_TO_SNIFF: Mutex<HashMap<u16, bool>> = Mutex::new(HashMap::new());
@@ -36,7 +36,7 @@ struct PortPair {
 #[derive(Debug, Clone)]
 struct TcpPacketInfo {
     payload: String,
-    packet_direction: FlagDirection,
+    packet_direction: PacketDirection,
     completed: bool,
     at: chrono::DateTime<chrono::Utc>,
 }
@@ -175,7 +175,7 @@ impl Sniffer {
         let source_port = packet.get_source();
         let destination_port = packet.get_destination();
 
-        let (port_pair, packet_direction): (PortPair, Option<FlagDirection>) = {
+        let (port_pair, packet_direction): (PortPair, Option<PacketDirection>) = {
             let ports = PORTS_TO_SNIFF.lock().unwrap();
 
             if ports.contains_key(&destination_port) {
@@ -184,7 +184,7 @@ impl Sniffer {
                         src: source_port,
                         dst: destination_port,
                     },
-                    Some(FlagDirection::IN),
+                    Some(PacketDirection::IN),
                 )
             } else if ports.contains_key(&source_port) {
                 (
@@ -192,7 +192,7 @@ impl Sniffer {
                         src: destination_port,
                         dst: source_port,
                     },
-                    Some(FlagDirection::OUT),
+                    Some(PacketDirection::OUT),
                 )
             } else {
                 return;
