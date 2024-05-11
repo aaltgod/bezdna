@@ -30,14 +30,11 @@ pub mod sniffer;
 #[derive(Clone)]
 pub struct AppContext {
     pub db: PgPool,
-    pub tx: Sender<u16>,
 }
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-
-    let (tx, rx) = mpsc::channel(1);
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -46,28 +43,26 @@ async fn main() {
         .await
         .unwrap();
 
-    let _flags_repo = flags_repo::Repository::new(pool.clone());
+    let streams_repo = streams_repo::Repository::new(pool.clone());
+    let flags_repo = flags_repo::Repository::new(pool.clone());
     let _services_repo = services_repo::Repository::new(pool.clone());
-    let _stream_repo = streams_repo::Repository::new(pool.clone());
 
     let app = Router::new()
         .route("/get-services", get(get_services))
         .route("/create-service", post(create_service))
         .layer(middleware::from_fn(info_middleware))
-        .layer(Extension(AppContext {
-            db: pool.clone(),
-            tx,
-        }));
+        .layer(Extension(AppContext { db: pool.clone() }));
 
     futures_util::future::join_all(vec![
         tokio::spawn(async move {
             Sniffer::new(
-                pool,
+                streams_repo,
+                flags_repo,
                 "lo0",
                 chrono::Duration::seconds(10),
                 chrono::Duration::seconds(20),
             )
-            .run(rx)
+            .run()
             .await
             .expect("sniffer")
         }),

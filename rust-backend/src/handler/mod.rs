@@ -1,7 +1,9 @@
 use axum::{Extension, http::StatusCode, Json, response::IntoResponse};
+use regex::bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::AppContext;
+use crate::sniffer::external_types::PORTS_TO_SNIFF;
 
 pub async fn create_service(
     ctx: Extension<AppContext>,
@@ -9,7 +11,10 @@ pub async fn create_service(
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::info!("{:?}", input);
 
-    ctx.tx.send(input.port as u16).await.unwrap();
+    PORTS_TO_SNIFF.lock().await.insert(
+        input.port as u16,
+        bytes::Regex::new(input.flag_regexp.as_str()).unwrap(),
+    );
 
     // match sqlx::query_as!(
     //     Service,
@@ -76,6 +81,7 @@ struct User {
 pub struct CreateService {
     name: String,
     port: i32,
+    flag_regexp: String,
 }
 
 #[derive(Clone, Serialize, Debug)]
