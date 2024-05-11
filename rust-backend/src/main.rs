@@ -17,7 +17,7 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 use tokio::sync::{mpsc, mpsc::Sender};
 
 use handler::{create_service, get_services};
-use repository::db::postgres::flags as flags_repo;
+use repository::db::postgres::packets as flags_repo;
 use repository::db::postgres::services as services_repo;
 use repository::db::postgres::streams as streams_repo;
 use sniffer::Sniffer;
