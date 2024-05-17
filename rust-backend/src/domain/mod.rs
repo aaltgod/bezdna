@@ -25,7 +25,7 @@ pub struct Packet {
     pub at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum PacketDirection {
     IN,
     OUT,

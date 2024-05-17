@@ -15,7 +15,7 @@ impl Repository {
     pub async fn create_streams(
         &self,
         streams: Vec<domain::Stream>,
-    ) -> Result<Vec<i64>, anyhow::Error> {
+    ) -> Result<Vec<u64>, anyhow::Error> {
         let qty = streams.len();
         let mut service_ports: Vec<i32> = Vec::with_capacity(qty);
 
@@ -29,17 +29,17 @@ impl Repository {
 		    (
 			    service_port
 		    )
-		SELECT * FROM
-		        unnest($1::integer[])   AS service_port
+		SELECT
+		      UNNEST($1::integer[]) AS service_port
         RETURNING id
         "#,
             service_ports.as_slice(),
         )
-        .fetch_all(&self.db)
-        .await
-        .map_err(|e| anyhow!(e.to_string()))?;
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
 
-        Ok(records.into_iter().map(|record| record.id).collect())
+        Ok(records.into_iter().map(|record| record.id as u64).collect())
     }
 
     pub async fn get_last_streams(&self, limit: u64) -> Result<Vec<domain::Stream>, anyhow::Error> {
@@ -54,15 +54,15 @@ impl Repository {
         "#,
             limit as i64
         )
-        .fetch_all(&self.db)
-        .await
+            .fetch_all(&self.db)
+            .await
         {
             Ok(res) => res,
             Err(e) => {
                 return match e {
                     sqlx::Error::RowNotFound => Ok(vec![]),
                     _ => Err(anyhow!(e.to_string())),
-                }
+                };
             }
         };
 
