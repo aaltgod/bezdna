@@ -4,6 +4,7 @@ use sqlx::PgPool;
 
 use crate::domain;
 
+#[derive(Clone)]
 pub struct Repository {
     db: PgPool,
 }
@@ -27,9 +28,9 @@ impl Repository {
             service.port as u32 as i32,
             service.flag_regexp.to_string(),
         )
-        .execute(&self.db)
-        .await
-        .map_err(|e| anyhow!(e.to_string()))?;
+            .execute(&self.db)
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(())
     }
@@ -46,15 +47,15 @@ impl Repository {
         "#,
             port as u32 as i32
         )
-        .fetch_one(&self.db)
-        .await
+            .fetch_one(&self.db)
+            .await
         {
             Ok(res) => res,
             Err(e) => {
                 return match e {
                     sqlx::Error::RowNotFound => Ok(None),
                     _ => Err(anyhow!(e.to_string())),
-                }
+                };
             }
         };
 
@@ -76,15 +77,15 @@ impl Repository {
         FROM services
         "#
         )
-        .fetch_all(&self.db)
-        .await
+            .fetch_all(&self.db)
+            .await
         {
             Ok(res) => res,
             Err(e) => {
                 return match e {
                     sqlx::Error::RowNotFound => Ok(vec![]),
                     _ => Err(anyhow!(e.to_string())),
-                }
+                };
             }
         };
 
