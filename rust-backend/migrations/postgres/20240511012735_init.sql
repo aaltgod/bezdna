@@ -23,7 +23,7 @@ CREATE TABLE
     at        TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE INDEX stream_id_idx ON packets (stream_id);
+CREATE INDEX packets_stream_id_idx ON packets (stream_id);
 
 CREATE TABLE
     IF NOT EXISTS streams
@@ -32,7 +32,7 @@ CREATE TABLE
     service_port INT NOT NULL
 );
 
-CREATE INDEX service_port_idx ON streams (service_port);
+CREATE INDEX streams_service_port_idx ON streams (service_port);
 
 -- +goose StatementEnd
 

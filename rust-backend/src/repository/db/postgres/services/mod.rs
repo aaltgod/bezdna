@@ -15,6 +15,7 @@ impl Repository {
     }
 
     pub async fn upsert_service(&self, service: domain::Service) -> Result<(), anyhow::Error> {
+        // TODO: ВНИМАНИЕ, тут перед INSERT инкрементится поле id.
         sqlx::query!(
             r#"
         INSERT INTO services(name, port, flag_regexp)
@@ -28,9 +29,9 @@ impl Repository {
             service.port as u32 as i32,
             service.flag_regexp.to_string(),
         )
-            .execute(&self.db)
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
+        .execute(&self.db)
+        .await
+        .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(())
     }
@@ -47,8 +48,8 @@ impl Repository {
         "#,
             port as u32 as i32
         )
-            .fetch_one(&self.db)
-            .await
+        .fetch_one(&self.db)
+        .await
         {
             Ok(res) => res,
             Err(e) => {
@@ -77,8 +78,8 @@ impl Repository {
         FROM services
         "#
         )
-            .fetch_all(&self.db)
-            .await
+        .fetch_all(&self.db)
+        .await
         {
             Ok(res) => res,
             Err(e) => {

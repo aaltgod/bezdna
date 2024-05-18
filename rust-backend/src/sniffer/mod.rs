@@ -8,7 +8,7 @@ use pnet::{
     datalink::Channel::Ethernet,
     packet::{ethernet::EthernetPacket, ipv4::Ipv4Packet, Packet},
 };
-use pnet::datalink::bpf;
+use pnet::datalink::{channel, Config};
 use pnet::packet::ethernet::EtherTypes::Ipv4;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::PrimitiveValues;
@@ -61,16 +61,7 @@ impl Sniffer {
             .find(|interface| interface.name.eq(self_handler.interface_name.as_str()))
             .unwrap();
 
-        let (_tx, mut rx) = match bpf::channel(
-            &interface,
-            bpf::Config {
-                write_buffer_size: 4096,
-                read_buffer_size: 4096,
-                read_timeout: None,
-                write_timeout: None,
-                bpf_fd_attempts: 1000,
-            },
-        ) {
+        let (_tx, mut rx) = match channel(&interface, Config::default()) {
             Ok(Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => return Err(anyhow!("INVALID type")),
             Err(e) => return Err(anyhow!(e.to_string())),
@@ -179,7 +170,10 @@ impl Sniffer {
                     }
                 }
 
-                self.packets_repo.insert_packets(packets_to_create).await.unwrap();
+                self.packets_repo
+                    .insert_packets(packets_to_create)
+                    .await
+                    .unwrap();
 
                 completed_stream_port_pairs.into_iter().for_each(|pair| {
                     // Очищаем память.

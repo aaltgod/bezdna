@@ -1,19 +1,11 @@
 use axum::{Extension, Json};
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
 
-use crate::handler::types::AppContext;
+use crate::handler::types::{AppError, AppContext, Services};
 
-pub async fn get_services(ctx: Extension<AppContext>) -> Result<impl IntoResponse, StatusCode> {
-    let services = ctx.services_repo.get_all_services().await.
-        map_err(|e| {
-            error!("{}", e.to_string());
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+pub async fn get_services(ctx: Extension<AppContext>) -> Result<Json<Services>, AppError> {
+    let services = ctx.services_repo.get_all_services().await.map_err(|e| {
+        AppError::InternalServerError(e)
+    })?;
 
-
-    Ok(Json("services"))
+    Ok(Json(Services::from(services)))
 }
-
-
-
