@@ -22,12 +22,12 @@ use repository::db::postgres::streams as streams_repo;
 use sniffer::Sniffer;
 
 use crate::handler::types::AppContext;
+use crate::sniffer::external_types::PORTS_TO_SNIFF;
 
 pub mod domain;
 pub mod handler;
 pub mod repository;
 pub mod sniffer;
-
 
 #[tokio::main]
 async fn main() {
@@ -44,18 +44,32 @@ async fn main() {
     let packets_repo = packets_repo::Repository::new(pool.clone());
     let services_repo = services_repo::Repository::new(pool.clone());
 
+    {
+        let mut ports_to_sniff = PORTS_TO_SNIFF.lock().await;
+        services_repo
+            .get_all_services()
+            .await
+            .expect("couldn't get services from db")
+            .into_iter()
+            .for_each(|s| {
+                let _ = ports_to_sniff.insert(s.port, s.flag_regexp);
+            });
+    }
+
     let app = Router::new()
         .route("/get-services", get(get_services))
         .route("/create-service", post(create_service))
         .layer(middleware::from_fn(info_middleware))
-        .layer(Extension(AppContext { services_repo }));
+        .layer(Extension(AppContext {
+            services_repo: services_repo.clone(),
+        }));
 
     futures_util::future::join_all(vec![
         tokio::spawn(async move {
             Sniffer::new(
                 streams_repo,
                 packets_repo,
-                "lo0",
+                "lo",
                 chrono::Duration::seconds(10),
                 chrono::Duration::seconds(20),
             )
@@ -77,7 +91,7 @@ async fn info_middleware(
     req: Request<Body>,
     next: Next<Body>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    tracing::info!("{:?}", req.uri());
+    tracing::info!("{:?} {:?}", req.uri(), req.body());
 
     Ok(next.run(req).await)
 }

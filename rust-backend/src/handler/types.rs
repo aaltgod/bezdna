@@ -1,3 +1,6 @@
+use axum::http::StatusCode;
+use axum::Json;
+use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 
 use crate::domain;
@@ -8,21 +11,56 @@ pub struct AppContext {
     pub services_repo: services_repo::Repository,
 }
 
+pub enum AppResponse {
+    OK,
+    Created,
+}
+
+impl IntoResponse for AppResponse {
+    fn into_response(self) -> Response {
+        match self {
+            Self::OK => StatusCode::OK.into_response(),
+            Self::Created => StatusCode::CREATED.into_response(),
+        }
+    }
+}
+
+pub enum AppError {
+    InternalServerError(anyhow::Error),
+    BadRequest(String, anyhow::Error),
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        #[derive(Serialize)]
+        struct ErrorResponse {
+            message: String,
+        }
+
+        let (status, message) = match self {
+            Self::InternalServerError(e) => {
+                error!("{e}");
+                (StatusCode::INTERNAL_SERVER_ERROR, "Внутренняя ошибка".to_owned())
+            }
+            Self::BadRequest(msg, e) => {
+                error!("{e}");
+                (StatusCode::BAD_REQUEST, msg)
+            }
+        };
+
+        (status, Json(ErrorResponse { message })).into_response()
+    }
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct User {
     pub id: u64,
     pub username: String,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct CreateService {
-    pub name: String,
-    pub port: i32,
-    pub flag_regexp: String,
-}
-
-#[derive(Clone, Serialize, Debug)]
-struct Service {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Service {
+    #[serde(skip_deserializing)]
     pub id: i64,
     pub name: String,
     pub port: i32,
@@ -30,12 +68,33 @@ struct Service {
 }
 
 impl From<domain::Service> for Service {
-    fn from(value: domain::Service) -> Self {
+    fn from(service: domain::Service) -> Self {
         Service {
-            id: value.id as i64,
-            name: value.name,
-            port: value.port as i32,
-            flag_regexp: value.flag_regexp.to_string(),
+            id: service.id as i64,
+            name: service.name,
+            port: service.port as i32,
+            flag_regexp: service.flag_regexp.to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Services {
+    pub services: Vec<Service>,
+}
+
+impl From<Vec<domain::Service>> for Services {
+    fn from(services: Vec<domain::Service>) -> Self {
+        Services {
+            services: services
+                .into_iter()
+                .map(|s| Service {
+                    id: s.id as i64,
+                    name: s.name,
+                    port: s.port as i32,
+                    flag_regexp: s.flag_regexp.to_string(),
+                })
+                .collect(),
         }
     }
 }
