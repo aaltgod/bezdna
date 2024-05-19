@@ -37,14 +37,14 @@ impl Sniffer {
     pub fn new(
         streams_repo: streams_repo::Repository,
         packets_repo: packets_repo::Repository,
-        interface_name: &str,
+        interface_name: String,
         tcp_stream_ttl: chrono::Duration,
         max_stream_ttl: chrono::Duration,
     ) -> Self {
         Sniffer {
             streams_repo,
             packets_repo,
-            interface_name: interface_name.to_string(),
+            interface_name,
             tcp_packet_info_by_port_pair: Arc::new(Mutex::new(HashMap::new())),
             tcp_stream_ttl,
             max_stream_ttl,
@@ -58,10 +58,13 @@ impl Sniffer {
 
         let interface = pnet::datalink::interfaces()
             .into_iter()
-            .find(|interface| interface.name.eq(self_handler.interface_name.as_str()))
-            .unwrap();
+            .find(|interface| interface.name.eq(&self_handler.interface_name));
 
-        let (_tx, mut rx) = match channel(&interface, Config::default()) {
+        if interface.is_none() {
+            return Err(anyhow!("interface `{}` doesn't exist", &self_handler.interface_name));
+        }
+
+        let (_tx, mut rx) = match channel(&interface.unwrap(), Config::default()) {
             Ok(Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => return Err(anyhow!("INVALID type")),
             Err(e) => return Err(anyhow!(e.to_string())),
