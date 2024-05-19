@@ -1,14 +1,16 @@
 use axum::http::StatusCode;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::domain;
-use crate::repository::db::postgres::services as services_repo;
+use crate::repository::db::postgres::{services as services_repo, streams as streams_repo};
 
 #[derive(Clone)]
 pub struct AppContext {
     pub services_repo: services_repo::Repository,
+    pub streams_repo: streams_repo::Repository,
 }
 
 pub enum AppResponse {
@@ -52,12 +54,6 @@ impl IntoResponse for AppError {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
-pub struct User {
-    pub id: u64,
-    pub username: String,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Service {
     #[serde(skip_deserializing)]
@@ -97,4 +93,11 @@ impl From<Vec<domain::Service>> for Services {
                 .collect(),
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Packet {
+    pub direction: String,
+    pub payload: String,
+    pub at: String,
 }

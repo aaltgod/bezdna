@@ -18,7 +18,7 @@ pub struct Stream {
 
 #[derive(Debug, Clone)]
 pub struct Packet {
-    pub id: u64,
+    pub id: i64,
     pub direction: PacketDirection,
     pub payload: String,
     pub stream_id: u64,

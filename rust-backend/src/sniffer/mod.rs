@@ -155,7 +155,7 @@ impl Sniffer {
                 let mut packets_to_create: Vec<domain::Packet> = Vec::new();
 
                 for (idx, pair) in completed_stream_port_pairs.iter().enumerate() {
-                    let tcp_packet_info = tcp_packet_info_by_port_pair.get(&pair).unwrap();
+                    let tcp_packet_info = tcp_packet_info_by_port_pair.get(pair).unwrap();
 
                     for info in tcp_packet_info {
                         // Не хотим хранить в бд пустые пакеты.

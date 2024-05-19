@@ -3,8 +3,6 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 
-use std::time::Duration;
-
 use axum::{
     body::Body,
     Extension,
@@ -15,7 +13,8 @@ use axum::{
 };
 use sqlx::postgres::PgPoolOptions;
 
-use handler::{create_service::create_service, get_services::get_services};
+use handler::{create_service::create_service, get_services::get_services,
+              get_streams_by_service_ids::get_streams_by_service_ids};
 use repository::db::postgres::packets as packets_repo;
 use repository::db::postgres::services as services_repo;
 use repository::db::postgres::streams as streams_repo;
@@ -65,9 +64,11 @@ async fn main() {
     let app = Router::new()
         .route("/get-services", get(get_services))
         .route("/create-service", post(create_service))
+        .route("/get-streams-by-service-ids", get(get_streams_by_service_ids))
         .layer(middleware::from_fn(info_middleware))
         .layer(Extension(AppContext {
             services_repo: services_repo.clone(),
+            streams_repo: streams_repo.clone(),
         }));
 
     futures_util::future::join_all(vec![
@@ -84,7 +85,9 @@ async fn main() {
                 .expect("run sniffer")
         }),
         tokio::spawn(async move {
-            axum::Server::bind(&format!("{}:{}", server_config.host, server_config.port).parse().expect("invalid server addr"))
+            axum::Server::bind(&format!("{}:{}", server_config.host, server_config.port)
+                .parse()
+                .expect("invalid server addr"))
                 .serve(app.into_make_service())
                 .await
                 .expect("run server")

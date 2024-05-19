@@ -1,15 +1,15 @@
 use anyhow::anyhow;
-use crate::handler::types;
 use axum::{Extension, Json};
 use regex::bytes;
+use serde::{Deserialize};
 
 use crate::domain;
-use crate::handler::types::{AppError, AppResponse};
+use crate::handler::types::{AppError, AppResponse, AppContext, Service};
 use crate::sniffer::external_types::PORTS_TO_SNIFF;
 
 pub async fn create_service(
-    ctx: Extension<types::AppContext>,
-    Json(req): Json<types::Service>,
+    ctx: Extension<AppContext>,
+    Json(req): Json<Service>,
 ) -> Result<AppResponse, AppError> {
     let name = req.name;
     let port = req.port as u16;
@@ -32,4 +32,10 @@ pub async fn create_service(
     PORTS_TO_SNIFF.lock().await.insert(port, flag_regexp);
 
     Ok(AppResponse::Created)
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(transparent)]
+pub struct CreateServiceRequest {
+    pub service: Service,
 }

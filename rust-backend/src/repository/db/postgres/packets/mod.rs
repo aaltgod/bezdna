@@ -3,7 +3,7 @@ use sqlx::PgPool;
 
 use crate::domain;
 
-mod types;
+pub mod types;
 
 pub struct Repository {
     db: PgPool,
@@ -90,7 +90,7 @@ impl Repository {
 
         for record in records.into_iter() {
             packets.push(domain::Packet {
-                id: record.id as u64,
+                id: record.id,
                 direction: record.packet_direction.into(),
                 payload: record.payload,
                 stream_id: record.stream_id as u64,
