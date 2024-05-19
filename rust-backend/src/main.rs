@@ -24,21 +24,27 @@ use sniffer::Sniffer;
 use crate::handler::types::AppContext;
 use crate::sniffer::external_types::PORTS_TO_SNIFF;
 
-pub mod domain;
-pub mod handler;
-pub mod repository;
-pub mod sniffer;
+mod domain;
+mod handler;
+mod repository;
+mod sniffer;
+mod config;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
+    let postgres_config = config::provide_postgres_config().expect("couldn't provide postgres config");
+    let sniffer_config = config::provide_sniffer_config().expect("couldn't provide sniffer config");
+    let server_config = config::provide_server_config().expect("couldn't server sniffer config");
+
+
     let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .acquire_timeout(Duration::from_secs(3))
-        .connect("postgresql://localhost/bezdna?user=user&password=1234&port=5433")
+        .max_connections(postgres_config.max_connections)
+        .acquire_timeout(postgres_config.timeout)
+        .connect(&postgres_config.database_url)
         .await
-        .unwrap();
+        .expect("couldn't init postgres pool");
 
     let streams_repo = streams_repo::Repository::new(pool.clone());
     let packets_repo = packets_repo::Repository::new(pool.clone());
@@ -69,16 +75,16 @@ async fn main() {
             Sniffer::new(
                 streams_repo,
                 packets_repo,
-                "lo",
-                chrono::Duration::seconds(10),
-                chrono::Duration::seconds(20),
+                sniffer_config.interface,
+                sniffer_config.tcp_stream_ttl,
+                sniffer_config.max_stream_ttl,
             )
                 .run()
                 .await
                 .expect("run sniffer")
         }),
         tokio::spawn(async move {
-            axum::Server::bind(&"0.0.0.0:3124".parse().unwrap())
+            axum::Server::bind(&format!("{}:{}", server_config.host, server_config.port).parse().expect("invalid server addr"))
                 .serve(app.into_make_service())
                 .await
                 .expect("run server")
