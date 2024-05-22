@@ -1,26 +1,28 @@
 use axum::http::StatusCode;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::domain;
-use crate::repository::db::postgres::services as services_repo;
+use crate::repository::db::postgres::{services as services_repo, streams as streams_repo};
 
 #[derive(Clone)]
 pub struct AppContext {
     pub services_repo: services_repo::Repository,
+    pub streams_repo: streams_repo::Repository,
 }
 
 pub enum AppResponse {
     OK,
-    Created,
+    CREATED,
 }
 
 impl IntoResponse for AppResponse {
     fn into_response(self) -> Response {
         match self {
             Self::OK => StatusCode::OK.into_response(),
-            Self::Created => StatusCode::CREATED.into_response(),
+            Self::CREATED => StatusCode::CREATED.into_response(),
         }
     }
 }
@@ -52,27 +54,21 @@ impl IntoResponse for AppError {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
-pub struct User {
-    pub id: u64,
-    pub username: String,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Service {
     #[serde(skip_deserializing)]
     pub id: i64,
     pub name: String,
-    pub port: i32,
+    pub port: i16,
     pub flag_regexp: String,
 }
 
 impl From<domain::Service> for Service {
     fn from(service: domain::Service) -> Self {
         Service {
-            id: service.id as i64,
+            id: service.id,
             name: service.name,
-            port: service.port as i32,
+            port: service.port,
             flag_regexp: service.flag_regexp.to_string(),
         }
     }
@@ -89,12 +85,27 @@ impl From<Vec<domain::Service>> for Services {
             services: services
                 .into_iter()
                 .map(|s| Service {
-                    id: s.id as i64,
+                    id: s.id,
                     name: s.name,
-                    port: s.port as i32,
+                    port: s.port,
                     flag_regexp: s.flag_regexp.to_string(),
                 })
                 .collect(),
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Packet {
+    pub direction: String,
+    pub payload: String,
+    pub at: String,
+    pub flag_regexp: String,
+    pub color: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct StreamIDWithPackets {
+    pub stream_id: i64,
+    pub packets: Vec<Packet>,
 }

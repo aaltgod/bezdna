@@ -155,7 +155,7 @@ impl Sniffer {
                 let mut packets_to_create: Vec<domain::Packet> = Vec::new();
 
                 for (idx, pair) in completed_stream_port_pairs.iter().enumerate() {
-                    let tcp_packet_info = tcp_packet_info_by_port_pair.get(&pair).unwrap();
+                    let tcp_packet_info = tcp_packet_info_by_port_pair.get(pair).unwrap();
 
                     for info in tcp_packet_info {
                         // Не хотим хранить в бд пустые пакеты.
@@ -203,8 +203,8 @@ impl Sniffer {
     }
 
     async fn handle_tcp_packet(&self, packet: TcpPacket<'_>) {
-        let source_port = packet.get_source();
-        let destination_port = packet.get_destination();
+        let source_port = packet.get_source() as i16;
+        let destination_port = packet.get_destination() as i16;
 
         let (port_pair, packet_direction): (PortPair, Option<domain::PacketDirection>) = {
             let ports = PORTS_TO_SNIFF.lock().await;

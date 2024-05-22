@@ -2,8 +2,8 @@ use crate::domain;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct PortPair {
-    pub src: u16,
-    pub dst: u16,
+    pub src: i16,
+    pub dst: i16,
 }
 
 #[derive(Debug, Clone)]
