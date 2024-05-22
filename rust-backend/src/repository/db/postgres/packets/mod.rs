@@ -93,7 +93,7 @@ impl Repository {
                 id: record.id,
                 direction: record.packet_direction.into(),
                 payload: record.payload,
-                stream_id: record.stream_id as u64,
+                stream_id: record.stream_id,
                 at: record.at,
             })
         }

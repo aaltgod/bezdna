@@ -59,7 +59,7 @@ pub struct Service {
     #[serde(skip_deserializing)]
     pub id: i64,
     pub name: String,
-    pub port: i32,
+    pub port: i16,
     pub flag_regexp: String,
 }
 
@@ -68,7 +68,7 @@ impl From<domain::Service> for Service {
         Service {
             id: service.id as i64,
             name: service.name,
-            port: service.port as i32,
+            port: service.port,
             flag_regexp: service.flag_regexp.to_string(),
         }
     }
@@ -87,7 +87,7 @@ impl From<Vec<domain::Service>> for Services {
                 .map(|s| Service {
                     id: s.id as i64,
                     name: s.name,
-                    port: s.port as i32,
+                    port: s.port,
                     flag_regexp: s.flag_regexp.to_string(),
                 })
                 .collect(),

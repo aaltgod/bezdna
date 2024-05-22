@@ -12,7 +12,7 @@ pub async fn create_service(
     Json(req): Json<Service>,
 ) -> Result<AppResponse, AppError> {
     let name = req.name;
-    let port = req.port as u16;
+    let port = req.port;
     let flag_regexp = bytes::Regex::new(req.flag_regexp.as_str()).map_err(|e| {
         AppError::BadRequest("Невалидное регулярное выражение".to_string(), anyhow!(e.to_string()))
     })?;

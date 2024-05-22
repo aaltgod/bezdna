@@ -18,7 +18,7 @@ impl Repository {
     pub async fn create_streams(
         &self,
         streams: Vec<domain::Stream>,
-    ) -> Result<Vec<u64>, anyhow::Error> {
+    ) -> Result<Vec<i64>, anyhow::Error> {
         let qty = streams.len();
         let mut service_ports: Vec<i32> = Vec::with_capacity(qty);
 
@@ -42,7 +42,7 @@ impl Repository {
             .await
             .map_err(|e| anyhow!(e.to_string()))?;
 
-        Ok(records.into_iter().map(|record| record.id as u64).collect())
+        Ok(records.into_iter().map(|record| record.id).collect())
     }
 
     pub async fn get_packets_by_stream_id(
@@ -99,7 +99,7 @@ impl Repository {
                     id: 0,
                     direction: record.packet_direction.into(),
                     payload: record.payload,
-                    stream_id: record.stream_id as u64,
+                    stream_id: record.stream_id,
                     at: record.at,
                 };
 

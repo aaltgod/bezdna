@@ -29,16 +29,16 @@ impl Repository {
             service.port as u32 as i32,
             service.flag_regexp.to_string(),
         )
-        .execute(&self.db)
-        .await
-        .map_err(|e| anyhow!(e.to_string()))?;
+            .execute(&self.db)
+            .await
+            .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(())
     }
 
     pub async fn get_service_by_port(
         &self,
-        port: u16,
+        port: i16,
     ) -> Result<Option<domain::Service>, anyhow::Error> {
         let record = match sqlx::query!(
             r#"
@@ -48,8 +48,8 @@ impl Repository {
         "#,
             port as u32 as i32
         )
-        .fetch_one(&self.db)
-        .await
+            .fetch_one(&self.db)
+            .await
         {
             Ok(res) => res,
             Err(e) => {
@@ -61,9 +61,9 @@ impl Repository {
         };
 
         let service = domain::Service {
-            id: record.id as u64,
+            id: record.id,
             name: record.name,
-            port: record.port as u16,
+            port: record.port as i16,
             flag_regexp: bytes::Regex::new(record.flag_regexp.as_str())
                 .map_err(|e| anyhow!(e.to_string()))?,
         };
@@ -78,8 +78,8 @@ impl Repository {
         FROM services
         "#
         )
-        .fetch_all(&self.db)
-        .await
+            .fetch_all(&self.db)
+            .await
         {
             Ok(res) => res,
             Err(e) => {
@@ -94,9 +94,9 @@ impl Repository {
 
         for record in records.into_iter() {
             services.push(domain::Service {
-                id: record.id as u64,
+                id: record.id,
                 name: record.name,
-                port: record.port as u16,
+                port: record.port as i16,
                 flag_regexp: bytes::Regex::new(record.flag_regexp.as_str())
                     .map_err(|e| anyhow!(e.to_string()))?,
             });
