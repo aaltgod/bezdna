@@ -1,16 +1,16 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 const route = useRoute();
 
 useHead({
   htmlAttrs: {
     lang: "en",
   },
-  title: "Bezdna",
-  meta: [{ name: "description", content: "Полезная тулза" }],
+  title: "ALPHA",
+  meta: [{name: "description", content: "Полезная тулза"}],
 });
 </script>
 
 <template>
-  <NuxtLoadingIndicator />
-  <NuxtPage />
+  <NuxtLoadingIndicator/>
+  <NuxtPage/>
 </template>
